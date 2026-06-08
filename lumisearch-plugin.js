@@ -26,14 +26,14 @@
 
   // ─── DEFAULTS ─────────────────────────────────────────────────────────────
   const DEFAULTS = {
-    apiUrl:       "https://designing-sequel-stingray.ngrok-free.dev/query",
-    sessionId:    "lumi_" + Math.random().toString(36).slice(2, 9),
-    strategy:     "hybrid",
-    accentColor:  "#1a56db",
-    brandName:    "AI Search",
+    apiUrl: "https://designing-sequel-stingray.ngrok-free.dev/query",
+    sessionId: "lumi_" + Math.random().toString(36).slice(2, 9),
+    strategy: "hybrid",
+    accentColor: "#1a56db",
+    brandName: "AI Search",
     triggerLabel: "Search",
-    placeholder:  "Search products, ask questions…",
-    logoText:     "✦",
+    placeholder: "Search products, ask questions…",
+    logoText: "✦",
   };
 
   // ─── STYLE BLOCK ──────────────────────────────────────────────────────────
@@ -702,14 +702,14 @@
 
   // ─── ICONS ────────────────────────────────────────────────────────────────
   const I = {
-    search:  `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
-    close:   `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
-    send:    `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>`,
+    search: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
+    close: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
+    send: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>`,
     product: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>`,
-    bolt:    `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`,
-    arrow:   `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>`,
-    bot:     `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><circle cx="12" cy="5" r="2"/><line x1="12" y1="7" x2="12" y2="11"/><line x1="8" y1="15" x2="8" y2="17"/><line x1="16" y1="15" x2="16" y2="17"/></svg>`,
-    warn:    `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
+    bolt: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`,
+    arrow: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>`,
+    bot: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><circle cx="12" cy="5" r="2"/><line x1="12" y1="7" x2="12" y2="11"/><line x1="8" y1="15" x2="8" y2="17"/><line x1="16" y1="15" x2="16" y2="17"/></svg>`,
+    warn: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
   };
 
   // ─── MARKDOWN-LITE ────────────────────────────────────────────────────────
@@ -730,8 +730,8 @@
       this.cfg = { ...DEFAULTS, ...config };
       this.chatHistory = [];
       this._searchOpen = false;
-      this._chatOpen   = false;
-      this._busy       = false;
+      this._chatOpen = false;
+      this._busy = false;
       this._mount();
     }
 
@@ -803,7 +803,7 @@
       `;
 
       this.$input = root.querySelector(".__lumi-searchbar-input");
-      this.$body  = root.querySelector(".__lumi-body");
+      this.$body = root.querySelector(".__lumi-body");
       root.querySelector(".__lumi-hero-close").addEventListener("click", () => this.closeAll());
 
       this.$input.addEventListener("keydown", e => {
@@ -848,9 +848,9 @@
         </div>
       `;
 
-      this.$msgs   = el.querySelector(".__lumi-msgs");
-      this.$ta     = el.querySelector(".__lumi-chat-ta");
-      this.$sendBtn= el.querySelector(".__lumi-chat-send");
+      this.$msgs = el.querySelector(".__lumi-msgs");
+      this.$ta = el.querySelector(".__lumi-chat-ta");
+      this.$sendBtn = el.querySelector(".__lumi-chat-send");
 
       el.querySelector(".__lumi-chat-headclose").addEventListener("click", () => this.closeChat());
 
@@ -871,10 +871,10 @@
 
     _htmlHint() {
       const chips = [
-        { label: "Home inverters",    q: "I want to buy home inverters" },
-        { label: "Solar products",    q: "Show me solar panels" },
-        { label: "Battery backup",    q: "I need battery backup solutions" },
-        { label: "Best selling",      q: "What are your best selling products?" },
+        { label: "Home inverters", q: "I want to buy home inverters" },
+        { label: "Solar products", q: "Show me solar panels" },
+        { label: "Battery backup", q: "I need battery backup solutions" },
+        { label: "Best selling", q: "What are your best selling products?" },
       ];
       return `
         <div class="__lumi-hint">
@@ -980,10 +980,10 @@
       this._setBody(this._htmlLoader());
 
       try {
-        const res  = await fetch(this.cfg.apiUrl, {
-          method:  "POST",
+        const res = await fetch(this.cfg.apiUrl, {
+          method: "POST",
           headers: { "accept": "application/json", "Content-Type": "application/json" },
-          body:    JSON.stringify({ query, session_id: this.cfg.sessionId, strategy: this.cfg.strategy }),
+          body: JSON.stringify({ query, session_id: this.cfg.sessionId, strategy: this.cfg.strategy }),
         });
         if (!res.ok) throw new Error(`Server error ${res.status}`);
         const data = await res.json();
@@ -1037,10 +1037,10 @@
       const typing = this._showTyping();
 
       try {
-        const res  = await fetch(this.cfg.apiUrl, {
-          method:  "POST",
+        const res = await fetch(this.cfg.apiUrl, {
+          method: "POST",
           headers: { "accept": "application/json", "Content-Type": "application/json" },
-          body:    JSON.stringify({ query, session_id: this.cfg.sessionId, strategy: this.cfg.strategy }),
+          body: JSON.stringify({ query, session_id: this.cfg.sessionId, strategy: this.cfg.strategy }),
         });
         if (!res.ok) throw new Error(`Server error ${res.status}`);
         const data = await res.json();
@@ -1106,11 +1106,11 @@
       this._inst = new LumiPlugin(config);
       return this._inst;
     },
-    open()    { this._inst?.openSearch(); },
-    close()   { this._inst?.closeAll(); },
+    open() { this._inst?.openSearch(); },
+    close() { this._inst?.closeAll(); },
     destroy() {
       if (!this._inst) return;
-      ["__lumi-trigger","__lumi-backdrop","__lumi-root","__lumi-chat","__lumi-styles"].forEach(id => {
+      ["__lumi-trigger", "__lumi-backdrop", "__lumi-root", "__lumi-chat", "__lumi-styles"].forEach(id => {
         document.getElementById(id)?.remove();
       });
       this._inst = null;
@@ -1122,11 +1122,11 @@
     const s = document.querySelector("script[data-lumi-auto]");
     if (s) {
       global.LumiSearch.init({
-        apiUrl:       s.dataset.lumiApi    || undefined,
-        accentColor:  s.dataset.lumiColor  || undefined,
-        brandName:    s.dataset.lumiBrand  || undefined,
-        triggerLabel: s.dataset.lumiLabel  || undefined,
-        logoText:     s.dataset.lumiLogo   || undefined,
+        apiUrl: s.dataset.lumiApi || undefined,
+        accentColor: s.dataset.lumiColor || undefined,
+        brandName: s.dataset.lumiBrand || undefined,
+        triggerLabel: s.dataset.lumiLabel || undefined,
+        logoText: s.dataset.lumiLogo || undefined,
       });
     }
   };

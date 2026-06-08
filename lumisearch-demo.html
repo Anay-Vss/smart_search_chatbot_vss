@@ -1,13 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LumiSearch Plugin v2 — Demo</title>
+  <title>LumiSearch Plugin — Demo</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
     body {
       font-family: 'Inter', system-ui, sans-serif;
       background: #f0f2f8;
@@ -21,42 +29,68 @@
       border-bottom: 1px solid #e5e7eb;
       padding: 0 32px;
       height: 60px;
-      display: flex; align-items: center; justify-content: space-between;
-      position: sticky; top: 0; z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
     }
+
     .site-nav-logo {
-      font-size: 18px; font-weight: 800;
+      font-size: 18px;
+      font-weight: 800;
       color: #0f1623;
-      display: flex; align-items: center; gap: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
+
     .site-nav-logo span {
-      width: 28px; height: 28px;
+      width: 28px;
+      height: 28px;
       background: #1a56db;
       border-radius: 7px;
-      display: flex; align-items: center; justify-content: center;
-      color: #fff; font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 14px;
     }
+
     .site-nav-links {
-      display: flex; gap: 28px;
+      display: flex;
+      gap: 28px;
       list-style: none;
     }
+
     .site-nav-links a {
       text-decoration: none;
-      font-size: 14px; font-weight: 500;
+      font-size: 14px;
+      font-weight: 500;
       color: #4b5568;
       transition: color 0.15s;
     }
-    .site-nav-links a:hover { color: #1a56db; }
+
+    .site-nav-links a:hover {
+      color: #1a56db;
+    }
+
     .site-nav-btn {
       padding: 8px 18px;
       background: #1a56db;
-      color: #fff; border: none;
+      color: #fff;
+      border: none;
       border-radius: 8px;
-      font-size: 14px; font-weight: 600;
+      font-size: 14px;
+      font-weight: 600;
       cursor: pointer;
       transition: filter 0.15s;
     }
-    .site-nav-btn:hover { filter: brightness(1.1); }
+
+    .site-nav-btn:hover {
+      filter: brightness(1.1);
+    }
 
     .hero-section {
       max-width: 900px;
@@ -64,75 +98,130 @@
       padding: 0 24px;
       text-align: center;
     }
+
     .hero-tag {
-      display: inline-flex; align-items: center; gap: 6px;
-      background: #eff6ff; border: 1px solid #bfdbfe;
-      color: #1d4ed8; border-radius: 99px;
-      font-size: 12px; font-weight: 600;
-      padding: 5px 14px; margin-bottom: 20px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: #1d4ed8;
+      border-radius: 99px;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 5px 14px;
+      margin-bottom: 20px;
       letter-spacing: 0.03em;
     }
+
     .hero-title {
       font-size: clamp(2rem, 5vw, 3rem);
-      font-weight: 800; line-height: 1.15;
+      font-weight: 800;
+      line-height: 1.15;
       color: #0f1623;
       margin-bottom: 16px;
     }
-    .hero-title em { font-style: normal; color: #1a56db; }
+
+    .hero-title em {
+      font-style: normal;
+      color: #1a56db;
+    }
+
     .hero-sub {
-      font-size: 16px; color: #6b7280;
-      line-height: 1.65; max-width: 520px;
+      font-size: 16px;
+      color: #6b7280;
+      line-height: 1.65;
+      max-width: 520px;
       margin: 0 auto 36px;
     }
+
     .hero-btns {
-      display: flex; gap: 12px;
-      justify-content: center; flex-wrap: wrap;
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
     }
+
     .btn-main {
       padding: 13px 28px;
-      background: #1a56db; color: #fff;
-      border: none; border-radius: 10px;
-      font-size: 15px; font-weight: 700;
+      background: #1a56db;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 700;
       cursor: pointer;
-      box-shadow: 0 4px 16px rgba(26,86,219,0.35);
+      box-shadow: 0 4px 16px rgba(26, 86, 219, 0.35);
       transition: transform 0.18s, box-shadow 0.18s;
     }
-    .btn-main:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(26,86,219,0.4); }
+
+    .btn-main:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(26, 86, 219, 0.4);
+    }
+
     .btn-ghost {
       padding: 13px 28px;
-      background: #fff; color: #374151;
+      background: #fff;
+      color: #374151;
       border: 1.5px solid #d1d5db;
       border-radius: 10px;
-      font-size: 15px; font-weight: 600;
+      font-size: 15px;
+      font-weight: 600;
       cursor: pointer;
       transition: border-color 0.15s;
     }
-    .btn-ghost:hover { border-color: #1a56db; color: #1a56db; }
+
+    .btn-ghost:hover {
+      border-color: #1a56db;
+      color: #1a56db;
+    }
 
     /* Code snippet */
     .code-section {
-      max-width: 680px; margin: 0 auto 60px;
+      max-width: 680px;
+      margin: 0 auto 60px;
       padding: 0 24px;
     }
+
     .code-title {
-      font-size: 13px; font-weight: 700;
-      color: #6b7280; text-transform: uppercase;
-      letter-spacing: 0.07em; margin-bottom: 12px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-bottom: 12px;
       text-align: center;
     }
+
     .code-wrap {
       background: #0f1623;
       border-radius: 14px;
       overflow: hidden;
-      box-shadow: 0 8px 32px rgba(15,22,35,0.15);
+      box-shadow: 0 8px 32px rgba(15, 22, 35, 0.15);
     }
+
     .code-bar {
       background: #1e2a3b;
       padding: 11px 18px;
-      display: flex; align-items: center; gap: 7px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
     }
-    .code-dot { width: 11px; height: 11px; border-radius: 50%; }
-    .code-bar span { font-size: 12px; color: #6b7280; margin-left: auto; font-family: monospace; }
+
+    .code-dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+    }
+
+    .code-bar span {
+      font-size: 12px;
+      color: #6b7280;
+      margin-left: auto;
+      font-family: monospace;
+    }
+
     pre {
       padding: 22px 24px;
       font-size: 13px;
@@ -141,39 +230,74 @@
       color: #e2e8f0;
       overflow-x: auto;
     }
-    .c-tag  { color: #7dd3fc; }
-    .c-attr { color: #86efac; }
-    .c-val  { color: #fcd34d; }
-    .c-fn   { color: #c084fc; }
-    .c-str  { color: #fbbf24; }
-    .c-dim  { color: #475569; }
+
+    .c-tag {
+      color: #7dd3fc;
+    }
+
+    .c-attr {
+      color: #86efac;
+    }
+
+    .c-val {
+      color: #fcd34d;
+    }
+
+    .c-fn {
+      color: #c084fc;
+    }
+
+    .c-str {
+      color: #fbbf24;
+    }
+
+    .c-dim {
+      color: #475569;
+    }
 
     /* Feature cards */
     .features {
-      max-width: 900px; margin: 0 auto 80px;
+      max-width: 900px;
+      margin: 0 auto 80px;
       padding: 0 24px;
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
       gap: 14px;
     }
+
     .feat {
       background: #fff;
       border: 1px solid #e5e7eb;
       border-radius: 14px;
       padding: 22px 20px;
     }
+
     .feat-icon {
-      width: 40px; height: 40px;
+      width: 40px;
+      height: 40px;
       background: #eff6ff;
       border-radius: 10px;
-      display: flex; align-items: center; justify-content: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       font-size: 18px;
       margin-bottom: 12px;
     }
-    .feat h3 { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
-    .feat p  { font-size: 13px; color: #6b7280; line-height: 1.55; }
+
+    .feat h3 {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .feat p {
+      font-size: 13px;
+      color: #6b7280;
+      line-height: 1.55;
+    }
   </style>
 </head>
+
 <body>
 
   <nav class="site-nav">
@@ -272,13 +396,14 @@
   <script src="lumisearch-plugin-fixed.js"></script>
   <script>
     LumiSearch.init({
-      apiUrl:       "https://designing-sequel-stingray.ngrok-free.dev/query",
-      accentColor:  "#1a56db",
-      brandName:    "Luminous AI",
+      apiUrl: "https://designing-sequel-stingray.ngrok-free.dev/query",
+      accentColor: "#1a56db",
+      brandName: "Luminous AI",
       triggerLabel: "AI Search",
-      logoText:     "✦",
+      logoText: "✦",
     });
   </script>
 
 </body>
+
 </html>
