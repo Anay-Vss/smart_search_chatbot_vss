@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LumiSearch Plugin v2 — Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: #f0f2f8;
+      color: #111827;
+      min-height: 100vh;
+    }
+
+    /* Demo host page — simulates a real website */
+    .site-nav {
+      background: #fff;
+      border-bottom: 1px solid #e5e7eb;
+      padding: 0 32px;
+      height: 60px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .site-nav-logo {
+      font-size: 18px; font-weight: 800;
+      color: #0f1623;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .site-nav-logo span {
+      width: 28px; height: 28px;
+      background: #1a56db;
+      border-radius: 7px;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 14px;
+    }
+    .site-nav-links {
+      display: flex; gap: 28px;
+      list-style: none;
+    }
+    .site-nav-links a {
+      text-decoration: none;
+      font-size: 14px; font-weight: 500;
+      color: #4b5568;
+      transition: color 0.15s;
+    }
+    .site-nav-links a:hover { color: #1a56db; }
+    .site-nav-btn {
+      padding: 8px 18px;
+      background: #1a56db;
+      color: #fff; border: none;
+      border-radius: 8px;
+      font-size: 14px; font-weight: 600;
+      cursor: pointer;
+      transition: filter 0.15s;
+    }
+    .site-nav-btn:hover { filter: brightness(1.1); }
+
+    .hero-section {
+      max-width: 900px;
+      margin: 70px auto 50px;
+      padding: 0 24px;
+      text-align: center;
+    }
+    .hero-tag {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: #eff6ff; border: 1px solid #bfdbfe;
+      color: #1d4ed8; border-radius: 99px;
+      font-size: 12px; font-weight: 600;
+      padding: 5px 14px; margin-bottom: 20px;
+      letter-spacing: 0.03em;
+    }
+    .hero-title {
+      font-size: clamp(2rem, 5vw, 3rem);
+      font-weight: 800; line-height: 1.15;
+      color: #0f1623;
+      margin-bottom: 16px;
+    }
+    .hero-title em { font-style: normal; color: #1a56db; }
+    .hero-sub {
+      font-size: 16px; color: #6b7280;
+      line-height: 1.65; max-width: 520px;
+      margin: 0 auto 36px;
+    }
+    .hero-btns {
+      display: flex; gap: 12px;
+      justify-content: center; flex-wrap: wrap;
+    }
+    .btn-main {
+      padding: 13px 28px;
+      background: #1a56db; color: #fff;
+      border: none; border-radius: 10px;
+      font-size: 15px; font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(26,86,219,0.35);
+      transition: transform 0.18s, box-shadow 0.18s;
+    }
+    .btn-main:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(26,86,219,0.4); }
+    .btn-ghost {
+      padding: 13px 28px;
+      background: #fff; color: #374151;
+      border: 1.5px solid #d1d5db;
+      border-radius: 10px;
+      font-size: 15px; font-weight: 600;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .btn-ghost:hover { border-color: #1a56db; color: #1a56db; }
+
+    /* Code snippet */
+    .code-section {
+      max-width: 680px; margin: 0 auto 60px;
+      padding: 0 24px;
+    }
+    .code-title {
+      font-size: 13px; font-weight: 700;
+      color: #6b7280; text-transform: uppercase;
+      letter-spacing: 0.07em; margin-bottom: 12px;
+      text-align: center;
+    }
+    .code-wrap {
+      background: #0f1623;
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(15,22,35,0.15);
+    }
+    .code-bar {
+      background: #1e2a3b;
+      padding: 11px 18px;
+      display: flex; align-items: center; gap: 7px;
+    }
+    .code-dot { width: 11px; height: 11px; border-radius: 50%; }
+    .code-bar span { font-size: 12px; color: #6b7280; margin-left: auto; font-family: monospace; }
+    pre {
+      padding: 22px 24px;
+      font-size: 13px;
+      font-family: 'Fira Code', 'Consolas', monospace;
+      line-height: 1.75;
+      color: #e2e8f0;
+      overflow-x: auto;
+    }
+    .c-tag  { color: #7dd3fc; }
+    .c-attr { color: #86efac; }
+    .c-val  { color: #fcd34d; }
+    .c-fn   { color: #c084fc; }
+    .c-str  { color: #fbbf24; }
+    .c-dim  { color: #475569; }
+
+    /* Feature cards */
+    .features {
+      max-width: 900px; margin: 0 auto 80px;
+      padding: 0 24px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 14px;
+    }
+    .feat {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+      padding: 22px 20px;
+    }
+    .feat-icon {
+      width: 40px; height: 40px;
+      background: #eff6ff;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      margin-bottom: 12px;
+    }
+    .feat h3 { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+    .feat p  { font-size: 13px; color: #6b7280; line-height: 1.55; }
+  </style>
+</head>
+<body>
+
+  <nav class="site-nav">
+    <div class="site-nav-logo">
+      <span>✦</span> Luminous India
+    </div>
+    <ul class="site-nav-links">
+      <li><a href="#">Products</a></li>
+      <li><a href="#">Solutions</a></li>
+      <li><a href="#">Support</a></li>
+      <li><a href="#">About</a></li>
+    </ul>
+    <button class="site-nav-btn" onclick="LumiSearch.open()">🔍 AI Search</button>
+  </nav>
+
+  <section class="hero-section">
+    <div class="hero-tag">✦ LumiSearch Plugin v2</div>
+    <h1 class="hero-title">
+      AI-powered search<br>for <em>any website</em>
+    </h1>
+    <p class="hero-sub">
+      Drop one script tag. Get a beautiful search popup with product cards,
+      intent routing, and a persistent chat window — no framework required.
+    </p>
+    <div class="hero-btns">
+      <button class="btn-main" onclick="LumiSearch.open()">Try the Search →</button>
+      <button class="btn-ghost" onclick="window.scrollTo({top:400,behavior:'smooth'})">View Integration</button>
+    </div>
+  </section>
+
+  <section class="code-section">
+    <p class="code-title">Angular Integration</p>
+    <div class="code-wrap">
+      <div class="code-bar">
+        <div class="code-dot" style="background:#ff5f57"></div>
+        <div class="code-dot" style="background:#febc2e"></div>
+        <div class="code-dot" style="background:#28c840"></div>
+        <span>app.component.ts</span>
+      </div>
+      <pre><span class="c-dim">// angular.json → scripts:</span>
+<span class="c-str">"src/assets/lumisearch-plugin.js"</span>
+
+<span class="c-dim">// app.component.ts</span>
+<span class="c-tag">import</span> { <span class="c-fn">LumiSearchService</span> } <span class="c-tag">from</span> <span class="c-str">'./services/lumisearch.service'</span>;
+
+<span class="c-tag">export class</span> <span class="c-fn">AppComponent</span> <span class="c-tag">implements</span> <span class="c-fn">AfterViewInit</span> {
+  <span class="c-tag">constructor</span>(<span class="c-tag">private</span> lumi: <span class="c-fn">LumiSearchService</span>) {}
+
+  <span class="c-fn">ngAfterViewInit</span>() {
+    this.lumi.<span class="c-fn">init</span>({
+      <span class="c-attr">accentColor</span>: <span class="c-str">'#1a56db'</span>,
+      <span class="c-attr">brandName</span>:   <span class="c-str">'Luminous AI'</span>,
+    });
+  }
+}
+
+<span class="c-dim">// Any child component</span>
+<span class="c-fn">openSearch</span>() { this.lumi.<span class="c-fn">open</span>(); }</pre>
+    </div>
+  </section>
+
+  <section class="features">
+    <div class="feat">
+      <div class="feat-icon">🎨</div>
+      <h3>Better Spacing & Polish</h3>
+      <p>Gradient hero header, proper padding, card thumbnails, section labels — everything breathes.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">🛍️</div>
+      <h3>Product Cards</h3>
+      <p>Thumbnail area, name, truncated description, "In Stock" badge, and per-card entrance animations.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">💬</div>
+      <h3>Chat Window</h3>
+      <p>Slide-up chat with online indicator, typing dots, user/bot bubbles, and auto-scroll.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">⚡</div>
+      <h3>Deep Dive with AI</h3>
+      <p>Below product results — one click opens chat pre-seeded with the original query.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">🔌</div>
+      <h3>Angular Ready</h3>
+      <p>Service wrapper, TypeScript declarations, and lifecycle management included.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">🔒</div>
+      <h3>Zero CSS Conflicts</h3>
+      <p>All styles under <code>#__lumi-root</code>. No inline styles. Won't break Tailwind or Bootstrap.</p>
+    </div>
+  </section>
+
+  <!-- ═══ PLUGIN — This is literally all you need on a real site ═══ -->
+  <script src="lumisearch-plugin-fixed.js"></script>
+  <script>
+    LumiSearch.init({
+      apiUrl:       "https://designing-sequel-stingray.ngrok-free.dev/query",
+      accentColor:  "#1a56db",
+      brandName:    "Luminous AI",
+      triggerLabel: "AI Search",
+      logoText:     "✦",
+    });
+  </script>
+
+</body>
+</html>
