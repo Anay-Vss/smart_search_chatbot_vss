@@ -934,7 +934,7 @@
   margin: 0;
   padding: 0;
 }
-#__lumi-chat .__lum
+#__lumi-chat .__lumi-chat-product-thumb img {
   width: 100%;
   height: 100%;
   object-fit: contain;
@@ -1251,7 +1251,7 @@
       root.querySelector(".__lumi-hero-close").addEventListener("click", () => this.closeAll());
 
       this.$input.addEventListener("keydown", e => {
-        if (e.key === "Enter") this._search(this.$input.value.trim());
+        if (e.key === "Enter") this._search(this.$input.value);
       });
 
       root.addEventListener("click", e => {
@@ -1432,6 +1432,58 @@
       `;
     }
 
+    // ─── Input sanitization ───────────────────────────────────────────────────
+
+    /**
+     * Validates and sanitizes raw user input.
+     * Uses DOMParser for HTML detection — catches unclosed tags, encoded
+     * entities, SVG/MathML injection, and other edge cases a naive regex misses.
+     *
+     * @param  {string} raw  Raw value from an input or textarea
+     * @returns {{ ok: boolean, value?: string, reason?: string }}
+     */
+    _sanitizeInput(raw) {
+      const text = (raw || "").trim();
+
+      if (!text) {
+        return { ok: false, reason: "Please enter a search term." };
+      }
+
+      if (text.length > 500) {
+        return { ok: false, reason: "Input is too long (max 500 characters)." };
+      }
+
+      // Parse as HTML — if the browser's own parser finds any element nodes,
+      // the input contained real markup and must be rejected.
+      const doc = new DOMParser().parseFromString(text, "text/html");
+      const hasElements = [...doc.body.childNodes].some(
+        n => n.nodeType === Node.ELEMENT_NODE
+      );
+      if (hasElements) {
+        return { ok: false, reason: "HTML tags are not allowed in your input." };
+      }
+
+      return { ok: true, value: text };
+    }
+
+    /**
+     * HTML-encodes a string before inserting it into the DOM.
+     * Second line of defence against XSS if sanitization is ever bypassed.
+     *
+     * @param  {string} str
+     * @returns {string}
+     */
+    _escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    // ─── UI state ─────────────────────────────────────────────────────────────
+
     openSearch() {
       this._searchOpen = true;
       this.$root.classList.add("lumi-on");
@@ -1463,8 +1515,16 @@
       this.$bd.classList.remove("lumi-on");
     }
 
-    async _search(query) {
-      if (!query || this._busy) return;
+    // ─── Search ───────────────────────────────────────────────────────────────
+
+    async _search(rawQuery) {
+      const { ok, value, reason } = this._sanitizeInput(rawQuery);
+      if (!ok) {
+        this._setBody(this._htmlError(reason));
+        return;
+      }
+      if (this._busy) return;
+
       this._busy = true;
       this._setBody(this._htmlLoader());
 
@@ -1472,7 +1532,7 @@
         const res = await fetch(this.cfg.apiUrl, {
           method: "POST",
           headers: { "accept": "application/json", "Content-Type": "application/json" },
-          body: JSON.stringify({ query, session_id: this.cfg.sessionId, strategy: this.cfg.strategy }),
+          body: JSON.stringify({ query: value, session_id: this.cfg.sessionId, strategy: this.cfg.strategy }),
         });
         if (!res.ok) throw new Error(`Server error ${res.status}`);
        
@@ -1480,7 +1540,7 @@
         console.log(res.data)
 
         if (data.intent === "buy" && data.products?.length) {
-          this._setBody(this._htmlProducts(data, query));
+          this._setBody(this._htmlProducts(data, value));
           const btn = this.$body.querySelector(".__lumi-deepdive");
           if (btn) btn.addEventListener("click", () => this._deepDive(btn.dataset.q));
         } else if (data.intent === "info" || data.message) {
@@ -1506,17 +1566,24 @@
       this.closeSearch();
       this.$msgs.querySelectorAll(".__lumi-msg").forEach(m => m.remove());
       this.openChat();
-      this._userMsg(q);
+      this._userMsg(this._escapeHtml(q));
       this._callApi(q);
     }
 
+    // ─── Chat ─────────────────────────────────────────────────────────────────
+
     async _sendMsg() {
-      const text = this.$ta.value.trim();
-      if (!text || this._busy) return;
+      const { ok, value, reason } = this._sanitizeInput(this.$ta.value);
+      if (!ok) {
+        this._botMsg(reason);
+        return;
+      }
+      if (this._busy) return;
+
       this.$ta.value = "";
       this.$ta.style.height = "auto";
-      this._userMsg(text);
-      await this._callApi(text);
+      this._userMsg(this._escapeHtml(value));
+      await this._callApi(value);
     }
 
     async _callApi(query) {
@@ -1597,9 +1664,14 @@
         card.innerHTML = `
           <div class="__lumi-chat-product-thumb">
             ${imgUrl
-              ? `<img src="${imgUrl}" alt="${p.product_name}" loading="lazy" onerror="this.style.display='none';this.parentElement.innerHTML='${I.product.replace(/'/g, "\\'")}';">`
-              : I.product
-            }
+            ? `<img
+      src="${imgUrl}"
+      alt="${p.product_name}"
+      loading="lazy"
+      onerror="this.remove();"
+    >`
+            : I.product
+}
           </div>
           <div class="__lumi-chat-product-body">
             <div class="__lumi-chat-product-name">${p.product_name}</div>
