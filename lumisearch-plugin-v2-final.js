@@ -17,6 +17,8 @@
     placeholder: "Search products, ask questions…",
     logoText: "✦",
     currency: "₹",
+    searchDebounceMs: 500,
+    chatDebounceMs: 500,
   };
 
   function injectStyles(cfg) {
@@ -1145,30 +1147,38 @@
       .replace(/^[-•]\s*/gm, "");
   }
 
-  /* NEW: Helper to clean image URLs (removes trailing %22 if present) */
   function cleanImageUrl(url) {
     if (!url) return null;
     return url.replace(/%22$/, "").replace(/"$/, "");
   }
 
-  /* NEW: Format currency */
   function formatPrice(price, currency) {
     if (price == null || isNaN(price)) return "";
     return currency + " " + price.toLocaleString("en-IN");
   }
 
-  /* NEW: Calculate discount percentage */
   function calcDiscount(price, mrp) {
     if (!mrp || !price || mrp <= price) return null;
     return Math.round(((mrp - price) / mrp) * 100);
   }
 
-  /* NEW: Strip HTML from description */
   function stripHtml(html) {
     if (!html) return "";
     const tmp = document.createElement("div");
     tmp.innerHTML = html;
     return tmp.textContent || tmp.innerText || "";
+  }
+
+  function debounce(func, delay) {
+    let timeoutId;
+    function debounced(...args) {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => func.apply(this, args), delay);
+    }
+    debounced.cancel = () => {
+      clearTimeout(timeoutId);
+    };
+    return debounced;
   }
 
   class LumiPlugin {
@@ -1178,6 +1188,12 @@
       this._searchOpen = false;
       this._chatOpen = false;
       this._busy = false;
+      this._lastSearchQuery = "";
+      this._searchRequestId = 0;
+
+      this._debouncedSearch = debounce((value) => this._search(value), this.cfg.searchDebounceMs);
+      this._debouncedChat = debounce((value) => this._callApi(value), this.cfg.chatDebounceMs);
+
       this._mount();
     }
 
@@ -1250,8 +1266,28 @@
       this.$body = root.querySelector(".__lumi-body");
       root.querySelector(".__lumi-hero-close").addEventListener("click", () => this.closeAll());
 
+      this.$input.addEventListener("input", (e) => {
+        const value = e.target.value.trim();
+        this._debouncedSearch.cancel();
+
+        if (!value) {
+          this._lastSearchQuery = "";
+          this._setBody(this._htmlHint());
+          return;
+        }
+
+        this._lastSearchQuery = value;
+        this._debouncedSearch(value);
+      });
+
       this.$input.addEventListener("keydown", e => {
-        if (e.key === "Enter") this._search(this.$input.value);
+        if (e.key === "Enter") {
+          e.preventDefault();
+          const value = this.$input.value.trim();
+          if (!value) return;
+          this._debouncedSearch.cancel();
+          this._search(value);
+        }
       });
 
       root.addEventListener("click", e => {
@@ -1298,12 +1334,17 @@
       el.querySelector(".__lumi-chat-headclose").addEventListener("click", () => this.closeChat());
 
       this.$sendBtn.addEventListener("click", () => this._sendMsg());
-      this.$ta.addEventListener("keydown", e => {
-        if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); this._sendMsg(); }
-      });
+
       this.$ta.addEventListener("input", () => {
         this.$ta.style.height = "auto";
         this.$ta.style.height = Math.min(this.$ta.scrollHeight, 90) + "px";
+      });
+
+      this.$ta.addEventListener("keydown", e => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          this._sendMsg();
+        }
       });
 
       document.body.appendChild(el);
@@ -1345,7 +1386,6 @@
       `;
     }
 
-    /* UPDATED: Product cards with price, MRP, SKU, and image support */
     _htmlProducts(data, originalQuery, forChat = false) {
       const cards = data.products.map((p, i) => {
         const imgUrl = cleanImageUrl(p.image_url);
@@ -1361,9 +1401,9 @@
             >
               <div class="__lumi-chat-product-thumb">
                 ${imgUrl
-                  ? `<img src="${imgUrl}" alt="${p.product_name}" loading="lazy" onerror="this.style.display='none';this.parentElement.innerHTML='${I.product.replace(/"/g, '&quot;')}';">`
-                  : I.product
-                }
+              ? `<img src="${imgUrl}" alt="${p.product_name}" loading="lazy" onerror="this.style.display='none';this.parentElement.innerHTML='${I.product.replace(/"/g, '&quot;')}';">`
+              : I.product
+            }
               </div>
               <div class="__lumi-chat-product-body">
                 <div class="__lumi-chat-product-name">${p.product_name}</div>
@@ -1386,9 +1426,9 @@
           >
             <div class="__lumi-card-thumb">
               ${imgUrl
-                ? `<img src="${imgUrl}" alt="${p.product_name}" loading="lazy" onerror="this.style.display='none';this.parentElement.innerHTML='<span class=\\'__lumi-card-thumb-icon\\'>${I.product.replace(/'/g, "\\'")}</span>`
-                : `<span class="__lumi-card-thumb-icon">${I.product}</span>`
-              }
+            ? `<img src="${imgUrl}" alt="${p.product_name}" loading="lazy" onerror="this.style.display='none';this.parentElement.innerHTML='<span class=\\'__lumi-card-thumb-icon\\'>${I.product.replace(/'/g, "\\'")}</span>'>"`
+            : `<span class="__lumi-card-thumb-icon">${I.product}</span>`
+          }
             </div>
             <div class="__lumi-card-body">
               <div class="__lumi-card-name">${p.product_name}</div>
@@ -1432,16 +1472,6 @@
       `;
     }
 
-    // ─── Input sanitization ───────────────────────────────────────────────────
-
-    /**
-     * Validates and sanitizes raw user input.
-     * Uses DOMParser for HTML detection — catches unclosed tags, encoded
-     * entities, SVG/MathML injection, and other edge cases a naive regex misses.
-     *
-     * @param  {string} raw  Raw value from an input or textarea
-     * @returns {{ ok: boolean, value?: string, reason?: string }}
-     */
     _sanitizeInput(raw) {
       const text = (raw || "").trim();
 
@@ -1453,8 +1483,6 @@
         return { ok: false, reason: "Input is too long (max 500 characters)." };
       }
 
-      // Parse as HTML — if the browser's own parser finds any element nodes,
-      // the input contained real markup and must be rejected.
       const doc = new DOMParser().parseFromString(text, "text/html");
       const hasElements = [...doc.body.childNodes].some(
         n => n.nodeType === Node.ELEMENT_NODE
@@ -1466,13 +1494,6 @@
       return { ok: true, value: text };
     }
 
-    /**
-     * HTML-encodes a string before inserting it into the DOM.
-     * Second line of defence against XSS if sanitization is ever bypassed.
-     *
-     * @param  {string} str
-     * @returns {string}
-     */
     _escapeHtml(str) {
       return String(str)
         .replace(/&/g, "&amp;")
@@ -1481,8 +1502,6 @@
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#39;");
     }
-
-    // ─── UI state ─────────────────────────────────────────────────────────────
 
     openSearch() {
       this._searchOpen = true;
@@ -1515,14 +1534,20 @@
       this.$bd.classList.remove("lumi-on");
     }
 
-    // ─── Search ───────────────────────────────────────────────────────────────
-
     async _search(rawQuery) {
-      const { ok, value, reason } = this._sanitizeInput(rawQuery);
+      const query = (rawQuery || "").trim();
+
+      if (!query) {
+        this._setBody(this._htmlHint());
+        return;
+      }
+
+      const { ok, value, reason } = this._sanitizeInput(query);
       if (!ok) {
         this._setBody(this._htmlError(reason));
         return;
       }
+
       if (this._busy) return;
 
       this._busy = true;
@@ -1535,42 +1560,93 @@
           body: JSON.stringify({ query: value, session_id: this.cfg.sessionId, strategy: this.cfg.strategy }),
         });
         if (!res.ok) throw new Error(`Server error ${res.status}`);
-       
+
         const data = await res.json();
-        console.log(res.data)
+        console.log(data);
+
+        // Check if the current search input still matches
+        const currentInputValue = this.$input.value.trim();
+        if (currentInputValue !== value) {
+          this._busy = false;
+          return;
+        }
 
         if (data.intent === "buy" && data.products?.length) {
           this._setBody(this._htmlProducts(data, value));
           const btn = this.$body.querySelector(".__lumi-deepdive");
           if (btn) btn.addEventListener("click", () => this._deepDive(btn.dataset.q));
         } else if (data.intent === "info" || data.message) {
+          // Properly reset state before navigation
+          this._busy = false;
+
+          // Clear the search input to prevent residual state
+          if (this.$input) {
+            this.$input.value = "";
+            // Blur the input to remove focus
+            this.$input.blur();
+          }
+
+          // Reset the body to hint UI
+          this._setBody(this._htmlHint());
+
+          // Close search and ensure backdrop is handled
           this.closeSearch();
-          this.$msgs.querySelectorAll(".__lumi-msg").forEach(m => m.remove());
+
+          // Clear existing chat messages
+          if (this.$msgs) {
+            this.$msgs.querySelectorAll(".__lumi-msg").forEach(m => m.remove());
+          }
+
+          // Open chat with bot message
           this.openChat(data.message);
+          return; // Exit early
         } else {
           this._setBody(this._htmlError("No results found for your query."));
         }
       } catch (err) {
-        this._setBody(this._htmlError(err.message));
+        const currentInputValue = this.$input.value.trim();
+        if (currentInputValue === query) {
+          this._setBody(this._htmlError(err.message));
+        }
       } finally {
-        this._busy = false;
+        // Only reset busy if we didn't navigate to chat
+        if (this._busy) {
+          this._busy = false;
+        }
       }
     }
 
     _setBody(html) {
-      this.$body.innerHTML = `<div class="__lumi-body-inner">${html}</div>`;
+      if (this.$body) {
+        this.$body.innerHTML = `<div class="__lumi-body-inner">${html}</div>`;
+      }
     }
 
     _deepDive(query) {
       const q = `Tell me more about: ${query}`;
+
+      // Clear any pending searches
+      this._debouncedSearch.cancel();
+      this._busy = false;
+
+      // Clear search input
+      if (this.$input) {
+        this.$input.value = "";
+        this.$input.blur();
+      }
+
       this.closeSearch();
-      this.$msgs.querySelectorAll(".__lumi-msg").forEach(m => m.remove());
+
+      // Reset chat messages
+      if (this.$msgs) {
+        this.$msgs.querySelectorAll(".__lumi-msg").forEach(m => m.remove());
+      }
+
+      // Open chat and send message
       this.openChat();
       this._userMsg(this._escapeHtml(q));
       this._callApi(q);
     }
-
-    // ─── Chat ─────────────────────────────────────────────────────────────────
 
     async _sendMsg() {
       const { ok, value, reason } = this._sanitizeInput(this.$ta.value);
@@ -1640,7 +1716,6 @@
       this._scrollMsgs();
     }
 
-    /* UPDATED: Chat product cards with images and prices */
     _botProductCards(data) {
       const el = document.createElement("div");
       el.className = "__lumi-msg __lumi-msg-bot";
@@ -1671,7 +1746,7 @@
       onerror="this.remove();"
     >`
             : I.product
-}
+          }
           </div>
           <div class="__lumi-chat-product-body">
             <div class="__lumi-chat-product-name">${p.product_name}</div>
