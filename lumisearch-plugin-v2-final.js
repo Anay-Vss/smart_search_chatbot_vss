@@ -1,7 +1,12 @@
 /**
- * LumiSearch AI Plugin v2.1
+ * LumiSearch AI Plugin v2.1 (fixed)
  * Drop-in embeddable AI search + chat widget. Zero dependencies.
  * Updated for new API response format with price, MRP, SKU, and images.
+ *
+ * FIXES:
+ *  - openSearch() now closes chat popup first before opening search modal
+ *  - Empty input always shows "What are you looking for?" hint UI
+ *    (on open, on input clear, and on focus-while-empty)
  */
 
 (function (global) {
@@ -1280,6 +1285,15 @@
         this._debouncedSearch(value);
       });
 
+      // FIX: Also reset to hint when input is focused while already empty
+      // (handles case where user clears input via backspace then refocuses,
+      // or search popup re-opens with empty field showing stale results)
+      this.$input.addEventListener("focus", () => {
+        if (!this.$input.value.trim()) {
+          this._setBody(this._htmlHint());
+        }
+      });
+
       this.$input.addEventListener("keydown", e => {
         if (e.key === "Enter") {
           e.preventDefault();
@@ -1394,82 +1408,84 @@
 
         if (forChat) {
           return `
-            <a class="__lumi-chat-product-card"
-               href="${p.product_link || p.eshop_link || '#'}"
-               rel="noopener"
-               style="animation-delay:${i * 45}ms"
-            >
-              <div class="__lumi-chat-product-thumb">
-                ${imgUrl
-              ? `<img src="${imgUrl}" alt="${p.product_name}" loading="lazy" onerror="this.style.display='none';this.parentElement.innerHTML='${I.product.replace(/"/g, '&quot;')}';">`
-              : I.product
+        <a class="__lumi-chat-product-card"
+           href="${p.product_link || p.eshop_link || '#'}"
+           rel="noopener"
+           style="animation-delay:${i * 45}ms"
+        >
+          <div class="__lumi-chat-product-thumb">
+            ${imgUrl
+              ? `<img src="${imgUrl}" alt="${p.product_name}" loading="lazy" onerror="this.style.display='none';this.parentElement.querySelector('.fallback-icon')?.style.removeProperty('display');">`
+              : `<span class="__lumi-card-thumb-icon">${I.product}</span>`
             }
-              </div>
-              <div class="__lumi-chat-product-body">
-                <div class="__lumi-chat-product-name">${p.product_name}</div>
-                <div class="__lumi-chat-product-desc">${cleanDesc}</div>
-                ${p.price ? `<div class="__lumi-chat-product-price">${formatPrice(p.price, this.cfg.currency)}</div>` : ""}
-                <div class="__lumi-chat-product-footer">
-                  <span class="__lumi-chat-product-cta">${I.arrow} View</span>
-                  <span class="__lumi-chat-product-badge">In Stock</span>
-                </div>
-              </div>
-            </a>
-          `;
+            <span class="__lumi-card-thumb-icon fallback-icon" style="display:none;">${I.product}</span>
+          </div>
+          <div class="__lumi-chat-product-body">
+            <div class="__lumi-chat-product-name">${p.product_name}</div>
+            <div class="__lumi-chat-product-desc">${cleanDesc}</div>
+            ${p.price ? `<div class="__lumi-chat-product-price">${formatPrice(p.price, this.cfg.currency)}</div>` : ""}
+            <div class="__lumi-chat-product-footer">
+              <span class="__lumi-chat-product-cta">${I.arrow} View</span>
+              <span class="__lumi-chat-product-badge">In Stock</span>
+            </div>
+          </div>
+        </a>
+      `;
         }
 
         return `
-          <a class="__lumi-card"
-             href="${p.product_link || p.eshop_link || '#'}"
-             rel="noopener"
-             style="animation-delay:${i * 45}ms"
-          >
-            <div class="__lumi-card-thumb">
-              ${imgUrl
-            ? `<img src="${imgUrl}" alt="${p.product_name}" loading="lazy" onerror="this.style.display='none';this.parentElement.innerHTML='<span class=\\'__lumi-card-thumb-icon\\'>${I.product.replace(/'/g, "\\'")}</span>'>"`
+      <a class="__lumi-card"
+         href="${p.product_link || p.eshop_link || '#'}"
+         rel="noopener"
+         style="animation-delay:${i * 45}ms"
+      >
+        <div class="__lumi-card-thumb">
+          ${imgUrl
+            ? `<img src="${imgUrl}" alt="${p.product_name}" loading="lazy" onerror="this.style.display='none';this.parentElement.querySelector('.fallback-icon')?.style.removeProperty('display');">`
             : `<span class="__lumi-card-thumb-icon">${I.product}</span>`
           }
-            </div>
-            <div class="__lumi-card-body">
-              <div class="__lumi-card-name">${p.product_name}</div>
-              <div class="__lumi-card-desc">${cleanDesc}</div>
-              <div class="__lumi-card-price-row">
-                ${p.price ? `<span class="__lumi-card-price">${formatPrice(p.price, this.cfg.currency)}</span>` : ""}
-                ${p.mrp && p.mrp > p.price ? `<span class="__lumi-card-mrp">${formatPrice(p.mrp, this.cfg.currency)}</span>` : ""}
-                ${discount ? `<span class="__lumi-card-discount">${discount}% off</span>` : ""}
-              </div>
-              ${p.sku ? `<div class="__lumi-card-sku">SKU: ${p.sku}</div>` : ""}
-              <div class="__lumi-card-footer">
-                <span class="__lumi-card-cta">${I.arrow} View Product</span>
-                <span class="__lumi-card-badge">In Stock</span>
-              </div>
-            </div>
-          </a>
-        `;
+          <span class="__lumi-card-thumb-icon fallback-icon" style="display:none;">${I.product}</span>
+        </div>
+        <div class="__lumi-card-body">
+          <div class="__lumi-card-name">${p.product_name}</div>
+          <div class="__lumi-card-desc">${cleanDesc}</div>
+          <div class="__lumi-card-price-row">
+            ${p.price ? `<span class="__lumi-card-price">${formatPrice(p.price, this.cfg.currency)}</span>` : ""}
+            ${p.mrp && p.mrp > p.price ? `<span class="__lumi-card-mrp">${formatPrice(p.mrp, this.cfg.currency)}</span>` : ""}
+            ${discount ? `<span class="__lumi-card-discount">${discount}% off</span>` : ""}
+          </div>
+          ${p.sku ? `<div class="__lumi-card-sku">SKU: ${p.sku}</div>` : ""}
+          <div class="__lumi-card-footer">
+            <span class="__lumi-card-cta">${I.arrow} View Product</span>
+            <span class="__lumi-card-badge">In Stock</span>
+          </div>
+        </div>
+      </a>
+    `;
       }).join("");
 
       if (forChat) {
         return `
-          <div class="__lumi-section-label">
-            <span class="__lumi-section-label-text">Products found</span>
-            <span class="__lumi-section-count">${data.products.length} results</span>
-          </div>
-          <div class="__lumi-chat-products-grid">${cards}</div>
-        `;
+      <div class="__lumi-section-label">
+        <span class="__lumi-section-label-text">Products found</span>
+        <span class="__lumi-section-count">${data.products.length} results</span>
+      </div>
+      <div class="__lumi-chat-products-grid">${cards}</div>
+    `;
       }
 
       return `
-        <div class="__lumi-section-label">
-          <span class="__lumi-section-label-text">Products found</span>
-          <span class="__lumi-section-count">${data.products.length} results</span>
-        </div>
-        <div class="__lumi-cards">${cards}</div>
-        <button class="__lumi-deepdive" data-q="${originalQuery}">
-          ${I.bolt}
-          Deep Dive with AI
-          <span class="__lumi-deepdive-sub">— Ask follow-up questions</span>
-        </button>
-      `;
+    <div class="__lumi-section-label">
+      <span class="__lumi-section-label-text">Products found</span>
+      <span class="__lumi-section-count">${data.products.length} results</span>
+    </div>
+    <div class="__lumi-cards">${cards}</div>
+    <button class="__lumi-deepdive" data-q="${originalQuery}">
+      ${I.bolt}
+      Deep Dive with AI
+      <span class="__lumi-deepdive-sub">— Ask follow-up questions</span>
+    </button>
+  `;
     }
 
     _sanitizeInput(raw) {
@@ -1503,17 +1519,41 @@
         .replace(/'/g, "&#39;");
     }
 
+    // ─── FIX 1: Close chat popup before opening search modal ───────────────────
     openSearch() {
+      // Always close chat first so the two panels never overlap
+      this.closeChat();
+
       this._searchOpen = true;
       this.$root.classList.add("lumi-on");
       this.$bd.classList.add("lumi-on");
+
+      // FIX 2: Always show hint UI when input is empty on open
+      // (prevents stale loader/results/error from a previous session showing up)
+      if (!this.$input.value.trim()) {
+        this._setBody(this._htmlHint());
+      }
+
       setTimeout(() => this.$input.focus(), 80);
     }
+    // ───────────────────────────────────────────────────────────────────────────
 
     closeSearch() {
       this._searchOpen = false;
       this.$root.classList.remove("lumi-on");
       if (!this._chatOpen) this.$bd.classList.remove("lumi-on");
+
+      // CLEAR INPUT AND RESET TO HINT UI WHEN CLOSING SEARCH
+      if (this.$input) {
+        this.$input.value = "";
+        this._setBody(this._htmlHint());
+      }
+
+      // Cancel any pending search debounce
+      this._debouncedSearch.cancel();
+
+      // Reset busy state
+      this._busy = false;
     }
 
     openChat(botMsg) {
@@ -1582,7 +1622,6 @@
           // Clear the search input to prevent residual state
           if (this.$input) {
             this.$input.value = "";
-            // Blur the input to remove focus
             this.$input.blur();
           }
 
