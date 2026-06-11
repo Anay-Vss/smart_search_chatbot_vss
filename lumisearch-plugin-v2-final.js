@@ -1,6 +1,7 @@
 /**
- * LumiSearch AI Plugin v2
+ * LumiSearch AI Plugin v2.1
  * Drop-in embeddable AI search + chat widget. Zero dependencies.
+ * Updated for new API response format with price, MRP, SKU, and images.
  */
 
 (function (global) {
@@ -15,6 +16,7 @@
     triggerLabel: "Search",
     placeholder: "Search products, ask questions…",
     logoText: "✦",
+    currency: "₹",
   };
 
   function injectStyles(cfg) {
@@ -124,8 +126,8 @@
   top: 50%;
   left: 50%;
   z-index: 99999;
-  width: min(660px, calc(100vw - 40px));
-  max-height: min(82vh, 680px);
+  width: min(720px, calc(100vw - 40px));
+  max-height: min(82vh, 720px);
   background: var(--ls-bg);
   border-radius: var(--ls-radius);
   box-shadow: var(--ls-shadow);
@@ -454,10 +456,11 @@
   line-height: 1;
 }
 
+/* UPDATED: Product cards with image support */
 #__lumi-root .__lumi-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(185px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
   margin: 0 0 20px 0;
   padding: 0;
 }
@@ -486,7 +489,7 @@
   transform: translateY(-3px);
 }
 #__lumi-root .__lumi-card-thumb {
-  height: 88px;
+  height: 120px;
   background: linear-gradient(135deg, var(--ls-accent-10) 0%, var(--ls-accent-20) 100%);
   display: flex;
   align-items: center;
@@ -497,14 +500,15 @@
   margin: 0;
   padding: 0;
 }
-#__lumi-root .__lumi-card-thumb::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: var(--ls-border);
+#__lumi-root .__lumi-card-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 8px;
+  transition: transform 0.3s var(--ls-spring);
+}
+#__lumi-root .__lumi-card:hover .__lumi-card-thumb img {
+  transform: scale(1.05);
 }
 #__lumi-root .__lumi-card-thumb-icon {
   color: var(--ls-accent);
@@ -540,6 +544,48 @@
   flex: 1;
   margin: 0;
   padding: 0;
+}
+/* NEW: Price styling */
+#__lumi-root .__lumi-card-price-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 0 0;
+  padding: 0;
+}
+#__lumi-root .__lumi-card-price {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ls-accent);
+  margin: 0;
+  padding: 0;
+  line-height: 1;
+}
+#__lumi-root .__lumi-card-mrp {
+  font-size: 12px;
+  color: var(--ls-text-3);
+  text-decoration: line-through;
+  margin: 0;
+  padding: 0;
+  line-height: 1;
+}
+#__lumi-root .__lumi-card-discount {
+  font-size: 10px;
+  font-weight: 700;
+  color: #059669;
+  background: #d1fae5;
+  padding: 2px 6px;
+  border-radius: 99px;
+  margin: 0;
+  line-height: 1;
+}
+#__lumi-root .__lumi-card-sku {
+  font-size: 10px;
+  color: var(--ls-text-3);
+  font-family: 'SF Mono', monospace;
+  margin: 2px 0 0 0;
+  padding: 0;
+  line-height: 1;
 }
 #__lumi-root .__lumi-card-footer {
   display: flex;
@@ -641,8 +687,8 @@
   bottom: 92px;
   right: 28px;
   z-index: 99997;
-  width: min(370px, calc(100vw - 32px));
-  height: 530px;
+  width: min(400px, calc(100vw - 32px));
+  height: 560px;
   background: var(--ls-bg);
   border-radius: var(--ls-radius);
   box-shadow: var(--ls-shadow);
@@ -853,7 +899,7 @@
 }
 #__lumi-chat .__lumi-chat-products-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 8px;
   margin: 0;
   padding: 0;
@@ -878,14 +924,21 @@
   transform: translateY(-2px);
 }
 #__lumi-chat .__lumi-chat-product-thumb {
-  height: 60px;
+  height: 70px;
   background: linear-gradient(135deg, var(--ls-accent-10) 0%, var(--ls-accent-20) 100%);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  overflow: hidden;
   margin: 0;
   padding: 0;
+}
+#__lumi-chat .__lum
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 4px;
 }
 #__lumi-chat .__lumi-chat-product-body {
   padding: 10px 11px 11px;
@@ -913,6 +966,15 @@
   overflow: hidden;
   margin: 0;
   padding: 0;
+}
+/* NEW: Chat product price */
+#__lumi-chat .__lumi-chat-product-price {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ls-accent);
+  margin: 2px 0 0 0;
+  padding: 0;
+  line-height: 1;
 }
 #__lumi-chat .__lumi-chat-product-footer {
   display: flex;
@@ -1069,6 +1131,7 @@
     arrow: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>`,
     bot: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><circle cx="12" cy="5" r="2"/><line x1="12" y1="7" x2="12" y2="11"/><line x1="8" y1="15" x2="8" y2="17"/><line x1="16" y1="15" x2="16" y2="17"/></svg>`,
     warn: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
+    tag: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>`,
   };
 
   function md(t) {
@@ -1080,6 +1143,32 @@
       .replace(/\n/g, "<br>")
       .replace(/^\d+\.\s*/gm, "")
       .replace(/^[-•]\s*/gm, "");
+  }
+
+  /* NEW: Helper to clean image URLs (removes trailing %22 if present) */
+  function cleanImageUrl(url) {
+    if (!url) return null;
+    return url.replace(/%22$/, "").replace(/"$/, "");
+  }
+
+  /* NEW: Format currency */
+  function formatPrice(price, currency) {
+    if (price == null || isNaN(price)) return "";
+    return currency + " " + price.toLocaleString("en-IN");
+  }
+
+  /* NEW: Calculate discount percentage */
+  function calcDiscount(price, mrp) {
+    if (!mrp || !price || mrp <= price) return null;
+    return Math.round(((mrp - price) / mrp) * 100);
+  }
+
+  /* NEW: Strip HTML from description */
+  function stripHtml(html) {
+    if (!html) return "";
+    const tmp = document.createElement("div");
+    tmp.innerHTML = html;
+    return tmp.textContent || tmp.innerText || "";
   }
 
   class LumiPlugin {
@@ -1256,26 +1345,68 @@
       `;
     }
 
+    /* UPDATED: Product cards with price, MRP, SKU, and image support */
     _htmlProducts(data, originalQuery, forChat = false) {
-      const cards = data.products.map((p, i) => `
-        <a class="__lumi-card"
-           href="${p.product_link || p.eshop_link || '#'}"
-           rel="noopener"
-           style="animation-delay:${i * 45}ms"
-        >
-          <div class="__lumi-card-thumb">
-            <span class="__lumi-card-thumb-icon">${I.product}</span>
-          </div>
-          <div class="__lumi-card-body">
-            <div class="__lumi-card-name">${p.product_name}</div>
-            <div class="__lumi-card-desc">${p.description || ""}</div>
-            <div class="__lumi-card-footer">
-              <span class="__lumi-card-cta">${I.arrow} View</span>
-              <span class="__lumi-card-badge">In Stock</span>
+      const cards = data.products.map((p, i) => {
+        const imgUrl = cleanImageUrl(p.image_url);
+        const discount = calcDiscount(p.price, p.mrp);
+        const cleanDesc = stripHtml(p.description);
+
+        if (forChat) {
+          return `
+            <a class="__lumi-chat-product-card"
+               href="${p.product_link || p.eshop_link || '#'}"
+               rel="noopener"
+               style="animation-delay:${i * 45}ms"
+            >
+              <div class="__lumi-chat-product-thumb">
+                ${imgUrl
+                  ? `<img src="${imgUrl}" alt="${p.product_name}" loading="lazy" onerror="this.style.display='none';this.parentElement.innerHTML='${I.product.replace(/"/g, '&quot;')}';">`
+                  : I.product
+                }
+              </div>
+              <div class="__lumi-chat-product-body">
+                <div class="__lumi-chat-product-name">${p.product_name}</div>
+                <div class="__lumi-chat-product-desc">${cleanDesc}</div>
+                ${p.price ? `<div class="__lumi-chat-product-price">${formatPrice(p.price, this.cfg.currency)}</div>` : ""}
+                <div class="__lumi-chat-product-footer">
+                  <span class="__lumi-chat-product-cta">${I.arrow} View</span>
+                  <span class="__lumi-chat-product-badge">In Stock</span>
+                </div>
+              </div>
+            </a>
+          `;
+        }
+
+        return `
+          <a class="__lumi-card"
+             href="${p.product_link || p.eshop_link || '#'}"
+             rel="noopener"
+             style="animation-delay:${i * 45}ms"
+          >
+            <div class="__lumi-card-thumb">
+              ${imgUrl
+                ? `<img src="${imgUrl}" alt="${p.product_name}" loading="lazy" onerror="this.style.display='none';this.parentElement.innerHTML='<span class=\\'__lumi-card-thumb-icon\\'>${I.product.replace(/'/g, "\\'")}</span>`
+                : `<span class="__lumi-card-thumb-icon">${I.product}</span>`
+              }
             </div>
-          </div>
-        </a>
-      `).join("");
+            <div class="__lumi-card-body">
+              <div class="__lumi-card-name">${p.product_name}</div>
+              <div class="__lumi-card-desc">${cleanDesc}</div>
+              <div class="__lumi-card-price-row">
+                ${p.price ? `<span class="__lumi-card-price">${formatPrice(p.price, this.cfg.currency)}</span>` : ""}
+                ${p.mrp && p.mrp > p.price ? `<span class="__lumi-card-mrp">${formatPrice(p.mrp, this.cfg.currency)}</span>` : ""}
+                ${discount ? `<span class="__lumi-card-discount">${discount}% off</span>` : ""}
+              </div>
+              ${p.sku ? `<div class="__lumi-card-sku">SKU: ${p.sku}</div>` : ""}
+              <div class="__lumi-card-footer">
+                <span class="__lumi-card-cta">${I.arrow} View Product</span>
+                <span class="__lumi-card-badge">In Stock</span>
+              </div>
+            </div>
+          </a>
+        `;
+      }).join("");
 
       if (forChat) {
         return `
@@ -1283,7 +1414,7 @@
             <span class="__lumi-section-label-text">Products found</span>
             <span class="__lumi-section-count">${data.products.length} results</span>
           </div>
-          <div class="__lumi-cards">${cards}</div>
+          <div class="__lumi-chat-products-grid">${cards}</div>
         `;
       }
 
@@ -1344,7 +1475,9 @@
           body: JSON.stringify({ query, session_id: this.cfg.sessionId, strategy: this.cfg.strategy }),
         });
         if (!res.ok) throw new Error(`Server error ${res.status}`);
+       
         const data = await res.json();
+        console.log(res.data)
 
         if (data.intent === "buy" && data.products?.length) {
           this._setBody(this._htmlProducts(data, query));
@@ -1440,6 +1573,7 @@
       this._scrollMsgs();
     }
 
+    /* UPDATED: Chat product cards with images and prices */
     _botProductCards(data) {
       const el = document.createElement("div");
       el.className = "__lumi-msg __lumi-msg-bot";
@@ -1452,16 +1586,25 @@
       grid.className = "__lumi-chat-products-grid";
 
       data.products.forEach((p, i) => {
+        const imgUrl = cleanImageUrl(p.image_url);
+        const cleanDesc = stripHtml(p.description);
         const card = document.createElement("a");
         card.className = "__lumi-chat-product-card";
         card.href = p.product_link || p.eshop_link || "#";
         card.rel = "noopener";
         card.style.animationDelay = `${i * 45}ms`;
+
         card.innerHTML = `
-          <div class="__lumi-chat-product-thumb">${I.product}</div>
+          <div class="__lumi-chat-product-thumb">
+            ${imgUrl
+              ? `<img src="${imgUrl}" alt="${p.product_name}" loading="lazy" onerror="this.style.display='none';this.parentElement.innerHTML='${I.product.replace(/'/g, "\\'")}';">`
+              : I.product
+            }
+          </div>
           <div class="__lumi-chat-product-body">
             <div class="__lumi-chat-product-name">${p.product_name}</div>
-            <div class="__lumi-chat-product-desc">${p.description || ""}</div>
+            <div class="__lumi-chat-product-desc">${cleanDesc}</div>
+            ${p.price ? `<div class="__lumi-chat-product-price">${formatPrice(p.price, this.cfg.currency)}</div>` : ""}
             <div class="__lumi-chat-product-footer">
               <span class="__lumi-chat-product-cta">${I.arrow} View</span>
               <span class="__lumi-chat-product-badge">In Stock</span>
@@ -1531,6 +1674,7 @@
         brandName: s.dataset.lumiBrand || undefined,
         triggerLabel: s.dataset.lumiLabel || undefined,
         logoText: s.dataset.lumiLogo || undefined,
+        currency: s.dataset.lumiCurrency || undefined,
       });
     }
   };
