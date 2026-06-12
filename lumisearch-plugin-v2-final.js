@@ -2,11 +2,13 @@
  * LumiSearch AI Plugin v2.1 (fixed)
  * Drop-in embeddable AI search + chat widget. Zero dependencies.
  * Updated for new API response format with price, MRP, SKU, and images.
+ * ADDED: Auto-redirection when API returns redirection_link
  *
  * FIXES:
  *  - openSearch() now closes chat popup first before opening search modal
  *  - Empty input always shows "What are you looking for?" hint UI
  *    (on open, on input clear, and on focus-while-empty)
+ *  - Auto-redirect when API response includes redirection_link
  */
 
 (function (global) {
@@ -1574,6 +1576,21 @@
       this.$bd.classList.remove("lumi-on");
     }
 
+    // NEW: Handle redirection if API response contains redirection_link
+    _handleRedirection(data) {
+      if (data.redirection_link && typeof data.redirection_link === 'string' && data.redirection_link.trim()) {
+        // Close all modals before redirecting
+        this.closeAll();
+
+        // Small delay to ensure UI closes smoothly before redirect
+        setTimeout(() => {
+          window.location.href = data.redirection_link;
+        }, 100);
+        return true;
+      }
+      return false;
+    }
+
     async _search(rawQuery) {
       const query = (rawQuery || "").trim();
 
@@ -1609,6 +1626,12 @@
         if (currentInputValue !== value) {
           this._busy = false;
           return;
+        }
+
+        // NEW: Check for redirection_link first
+        if (this._handleRedirection(data)) {
+          this._busy = false;
+          return; // Exit early, redirect will happen
         }
 
         if (data.intent === "buy" && data.products?.length) {
@@ -1648,7 +1671,7 @@
           this._setBody(this._htmlError(err.message));
         }
       } finally {
-        // Only reset busy if we didn't navigate to chat
+        // Only reset busy if we didn't navigate to chat or redirect
         if (this._busy) {
           this._busy = false;
         }
@@ -1715,6 +1738,13 @@
         if (!res.ok) throw new Error(`Server error ${res.status}`);
         const data = await res.json();
         typing.remove();
+
+        // NEW: Check for redirection_link in chat responses too
+        if (this._handleRedirection(data)) {
+          this._busy = false;
+          this.$sendBtn.disabled = false;
+          return; // Exit early, redirect will happen
+        }
 
         if (data.intent === "buy" && data.products?.length) {
           this._botMsg(data.message || "Here are some products that match your request:");
