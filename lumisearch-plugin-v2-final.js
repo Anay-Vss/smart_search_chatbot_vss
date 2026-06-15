@@ -9,6 +9,7 @@
  *  - Empty input always shows "What are you looking for?" hint UI
  *    (on open, on input clear, and on focus-while-empty)
  *  - Auto-redirect when API response includes redirection_link
+ *  - Auto-clear HTML tags from inputs with warning notification
  */
 
 (function (global) {
@@ -1274,7 +1275,10 @@
       root.querySelector(".__lumi-hero-close").addEventListener("click", () => this.closeAll());
 
       this.$input.addEventListener("input", (e) => {
-        const value = e.target.value.trim();
+        // Clear HTML tags automatically
+        const cleanedValue = this._clearHtmlFromInput(this.$input);
+
+        const value = cleanedValue.trim();
         this._debouncedSearch.cancel();
 
         if (!value) {
@@ -1288,8 +1292,6 @@
       });
 
       // FIX: Also reset to hint when input is focused while already empty
-      // (handles case where user clears input via backspace then refocuses,
-      // or search popup re-opens with empty field showing stale results)
       this.$input.addEventListener("focus", () => {
         if (!this.$input.value.trim()) {
           this._setBody(this._htmlHint());
@@ -1352,6 +1354,9 @@
       this.$sendBtn.addEventListener("click", () => this._sendMsg());
 
       this.$ta.addEventListener("input", () => {
+        // Clear HTML tags automatically
+        this._clearHtmlFromInput(this.$ta);
+
         this.$ta.style.height = "auto";
         this.$ta.style.height = Math.min(this.$ta.scrollHeight, 90) + "px";
       });
@@ -1521,6 +1526,79 @@
         .replace(/'/g, "&#39;");
     }
 
+    // NEW: Clear HTML from input fields automatically
+    _clearHtmlFromInput(inputElement) {
+      if (!inputElement) return "";
+
+      const rawValue = inputElement.value;
+      const doc = new DOMParser().parseFromString(rawValue, "text/html");
+      const hasElements = [...doc.body.childNodes].some(
+        n => n.nodeType === Node.ELEMENT_NODE
+      );
+
+      if (hasElements) {
+        // Extract only text content, remove all HTML tags
+        const textOnly = doc.body.textContent || "";
+        inputElement.value = textOnly;
+
+        // Show a temporary warning
+        this._showHtmlWarning();
+
+        return textOnly;
+      }
+
+      return rawValue;
+    }
+
+    _showHtmlWarning() {
+      // Create or update warning element
+      let warning = document.getElementById("__lumi-html-warning");
+      if (!warning) {
+        warning = document.createElement("div");
+        warning.id = "__lumi-html-warning";
+        warning.style.cssText = `
+          position: fixed;
+          bottom: 90px;
+          right: 28px;
+          background: #ff9800;
+          color: white;
+          padding: 8px 16px;
+          border-radius: 8px;
+          font-size: 13px;
+          font-weight: 500;
+          z-index: 100000;
+          animation: fadeOut 3s ease forwards;
+          pointer-events: none;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        `;
+        document.body.appendChild(warning);
+
+        // Add animation style if not exists
+        if (!document.getElementById("__lumi-warning-style")) {
+          const style = document.createElement("style");
+          style.id = "__lumi-warning-style";
+          style.textContent = `
+            @keyframes fadeOut {
+              0% { opacity: 1; transform: translateY(0); }
+              70% { opacity: 1; transform: translateY(0); }
+              100% { opacity: 0; transform: translateY(-20px); visibility: hidden; }
+            }
+          `;
+          document.head.appendChild(style);
+        }
+      }
+
+      warning.textContent = "⚠️ HTML tags removed for security";
+      warning.style.animation = "none";
+      warning.offsetHeight; // Trigger reflow
+      warning.style.animation = "fadeOut 3s ease forwards";
+
+      // Remove after animation
+      setTimeout(() => {
+        if (warning.parentNode) warning.remove();
+      }, 3000);
+    }
+
     // ─── FIX 1: Close chat popup before opening search modal ───────────────────
     openSearch() {
       // Always close chat first so the two panels never overlap
@@ -1531,7 +1609,6 @@
       this.$bd.classList.add("lumi-on");
 
       // FIX 2: Always show hint UI when input is empty on open
-      // (prevents stale loader/results/error from a previous session showing up)
       if (!this.$input.value.trim()) {
         this._setBody(this._htmlHint());
       }
@@ -1711,9 +1788,16 @@
     }
 
     async _sendMsg() {
+      // Clear HTML before processing
+      this._clearHtmlFromInput(this.$ta);
+
       const { ok, value, reason } = this._sanitizeInput(this.$ta.value);
       if (!ok) {
         this._botMsg(reason);
+        // Clear the textarea if it contains invalid content
+        if (reason.includes("HTML") || reason.includes("tags")) {
+          this.$ta.value = "";
+        }
         return;
       }
       if (this._busy) return;
