@@ -10,6 +10,7 @@
  *    (on open, on input clear, and on focus-while-empty)
  *  - Auto-redirect when API response includes redirection_link
  *  - Auto-clear HTML tags from inputs with warning notification
+ *  - Remove domain from product links (convert to relative paths)
  */
 
 (function (global) {
@@ -1160,6 +1161,21 @@
     return url.replace(/%22$/, "").replace(/"$/, "");
   }
 
+  // NEW: Remove domain from product links
+  function cleanLinkUrl(url) {
+    if (!url || url === '#') return '#';
+
+    try {
+      // Try to parse as URL and extract just the path
+      const urlObj = new URL(url);
+      // Return only the pathname + search + hash (remove domain)
+      return urlObj.pathname + urlObj.search + urlObj.hash;
+    } catch (e) {
+      // If it's not a valid URL, return as is (might already be relative)
+      return url;
+    }
+  }
+
   function formatPrice(price, currency) {
     if (price == null || isNaN(price)) return "";
     return currency + " " + price.toLocaleString("en-IN");
@@ -1412,11 +1428,13 @@
         const imgUrl = cleanImageUrl(p.image_url);
         const discount = calcDiscount(p.price, p.mrp);
         const cleanDesc = stripHtml(p.description);
+        // Clean the link by removing domain
+        const cleanLink = cleanLinkUrl(p.product_link || p.eshop_link || '#');
 
         if (forChat) {
           return `
         <a class="__lumi-chat-product-card"
-           href="${p.product_link || p.eshop_link || '#'}"
+           href="${cleanLink}"
            rel="noopener"
            style="animation-delay:${i * 45}ms"
         >
@@ -1442,7 +1460,7 @@
 
         return `
       <a class="__lumi-card"
-         href="${p.product_link || p.eshop_link || '#'}"
+         href="${cleanLink}"
          rel="noopener"
          style="animation-delay:${i * 45}ms"
       >
@@ -1885,7 +1903,8 @@
         const cleanDesc = stripHtml(p.description);
         const card = document.createElement("a");
         card.className = "__lumi-chat-product-card";
-        card.href = p.product_link || p.eshop_link || "#";
+        // Clean the link by removing domain
+        card.href = cleanLinkUrl(p.product_link || p.eshop_link || "#");
         card.rel = "noopener";
         card.style.animationDelay = `${i * 45}ms`;
 
