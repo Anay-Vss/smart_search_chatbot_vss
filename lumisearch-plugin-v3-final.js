@@ -405,23 +405,25 @@
     }
 
     _showRestoredChat() {
-      if (this._destroyed) return;
+  if (this._destroyed) return;
 
-      if (this._pendingMessage) {
-        this.openChat(this._pendingMessage);
-        this._pendingMessage = null;
-      } else {
-        this.openChat();
-      }
+  if (this._pendingMessage) {
+    // Save pending message to history so _renderChatHistory includes it
+    this._saveToHistory('bot', this._pendingMessage);
+    this.openChat(this._pendingMessage);
+    this._pendingMessage = null;
+  } else {
+    this.openChat();
+  }
 
-      if (this._restoredHistory && this.chatHistory.length > 0) {
-        setTimeout(() => {
-          if (!this._destroyed) {
-            this._renderChatHistory();
-          }
-        }, 50);
+  if (this._restoredHistory && this.chatHistory.length > 0) {
+    setTimeout(() => {
+      if (!this._destroyed) {
+        this._renderChatHistory();
       }
-    }
+    }, 50);
+  }
+}
 
     _renderChatHistory() {
       if (!this.$msgs || this._destroyed) return;
