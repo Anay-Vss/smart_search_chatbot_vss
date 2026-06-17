@@ -1,16 +1,8 @@
 /**
- * LumiSearch AI Plugin v2.1 (fixed)
+ * LumiSearch AI Plugin v2.3 - Show message in chat after redirection
  * Drop-in embeddable AI search + chat widget. Zero dependencies.
- * Updated for new API response format with price, MRP, SKU, and images.
- * ADDED: Auto-redirection when API returns redirection_link
- *
- * FIXES:
- *  - openSearch() now closes chat popup first before opening search modal
- *  - Empty input always shows "What are you looking for?" hint UI
- *    (on open, on input clear, and on focus-while-empty)
- *  - Auto-redirect when API response includes redirection_link
- *  - Auto-clear HTML tags from inputs with warning notification
- *  - Remove domain from product links (convert to relative paths)
+ * 
+ * FIX: After redirection, message always shows in chat popup
  */
 
 (function (global) {
@@ -467,7 +459,6 @@
   line-height: 1;
 }
 
-/* UPDATED: Product cards with image support */
 #__lumi-root .__lumi-cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -556,7 +547,6 @@
   margin: 0;
   padding: 0;
 }
-/* NEW: Price styling */
 #__lumi-root .__lumi-card-price-row {
   display: flex;
   align-items: center;
@@ -978,7 +968,6 @@
   margin: 0;
   padding: 0;
 }
-/* NEW: Chat product price */
 #__lumi-chat .__lumi-chat-product-price {
   font-size: 13px;
   font-weight: 700;
@@ -1161,17 +1150,12 @@
     return url.replace(/%22$/, "").replace(/"$/, "");
   }
 
-  // NEW: Remove domain from product links
   function cleanLinkUrl(url) {
     if (!url || url === '#') return '#';
-
     try {
-      // Try to parse as URL and extract just the path
       const urlObj = new URL(url);
-      // Return only the pathname + search + hash (remove domain)
       return urlObj.pathname + urlObj.search + urlObj.hash;
     } catch (e) {
-      // If it's not a valid URL, return as is (might already be relative)
       return url;
     }
   }
@@ -1291,10 +1275,8 @@
       root.querySelector(".__lumi-hero-close").addEventListener("click", () => this.closeAll());
 
       this.$input.addEventListener("input", (e) => {
-        // Clear HTML tags automatically
-        const cleanedValue = this._clearHtmlFromInput(this.$input);
-
-        const value = cleanedValue.trim();
+        this._clearHtmlFromInput(this.$input);
+        const value = this.$input.value.trim();
         this._debouncedSearch.cancel();
 
         if (!value) {
@@ -1307,7 +1289,6 @@
         this._debouncedSearch(value);
       });
 
-      // FIX: Also reset to hint when input is focused while already empty
       this.$input.addEventListener("focus", () => {
         if (!this.$input.value.trim()) {
           this._setBody(this._htmlHint());
@@ -1370,9 +1351,7 @@
       this.$sendBtn.addEventListener("click", () => this._sendMsg());
 
       this.$ta.addEventListener("input", () => {
-        // Clear HTML tags automatically
         this._clearHtmlFromInput(this.$ta);
-
         this.$ta.style.height = "auto";
         this.$ta.style.height = Math.min(this.$ta.scrollHeight, 90) + "px";
       });
@@ -1428,7 +1407,6 @@
         const imgUrl = cleanImageUrl(p.image_url);
         const discount = calcDiscount(p.price, p.mrp);
         const cleanDesc = stripHtml(p.description);
-        // Clean the link by removing domain
         const cleanLink = cleanLinkUrl(p.product_link || p.eshop_link || '#');
 
         if (forChat) {
@@ -1544,7 +1522,6 @@
         .replace(/'/g, "&#39;");
     }
 
-    // NEW: Clear HTML from input fields automatically
     _clearHtmlFromInput(inputElement) {
       if (!inputElement) return "";
 
@@ -1555,13 +1532,9 @@
       );
 
       if (hasElements) {
-        // Extract only text content, remove all HTML tags
         const textOnly = doc.body.textContent || "";
         inputElement.value = textOnly;
-
-        // Show a temporary warning
         this._showHtmlWarning();
-
         return textOnly;
       }
 
@@ -1569,7 +1542,6 @@
     }
 
     _showHtmlWarning() {
-      // Create or update warning element
       let warning = document.getElementById("__lumi-html-warning");
       if (!warning) {
         warning = document.createElement("div");
@@ -1591,7 +1563,6 @@
         `;
         document.body.appendChild(warning);
 
-        // Add animation style if not exists
         if (!document.getElementById("__lumi-warning-style")) {
           const style = document.createElement("style");
           style.id = "__lumi-warning-style";
@@ -1608,48 +1579,38 @@
 
       warning.textContent = "⚠️ HTML tags removed for security";
       warning.style.animation = "none";
-      warning.offsetHeight; // Trigger reflow
+      warning.offsetHeight;
       warning.style.animation = "fadeOut 3s ease forwards";
 
-      // Remove after animation
       setTimeout(() => {
         if (warning.parentNode) warning.remove();
       }, 3000);
     }
 
-    // ─── FIX 1: Close chat popup before opening search modal ───────────────────
     openSearch() {
-      // Always close chat first so the two panels never overlap
       this.closeChat();
-
       this._searchOpen = true;
       this.$root.classList.add("lumi-on");
       this.$bd.classList.add("lumi-on");
 
-      // FIX 2: Always show hint UI when input is empty on open
       if (!this.$input.value.trim()) {
         this._setBody(this._htmlHint());
       }
 
       setTimeout(() => this.$input.focus(), 80);
     }
-    // ───────────────────────────────────────────────────────────────────────────
 
     closeSearch() {
       this._searchOpen = false;
       this.$root.classList.remove("lumi-on");
       if (!this._chatOpen) this.$bd.classList.remove("lumi-on");
 
-      // CLEAR INPUT AND RESET TO HINT UI WHEN CLOSING SEARCH
       if (this.$input) {
         this.$input.value = "";
         this._setBody(this._htmlHint());
       }
 
-      // Cancel any pending search debounce
       this._debouncedSearch.cancel();
-
-      // Reset busy state
       this._busy = false;
     }
 
@@ -1671,13 +1632,20 @@
       this.$bd.classList.remove("lumi-on");
     }
 
-    // NEW: Handle redirection if API response contains redirection_link
+    // ─── FIX: Store message before redirect ───
     _handleRedirection(data) {
       if (data.redirection_link && typeof data.redirection_link === 'string' && data.redirection_link.trim()) {
-        // Close all modals before redirecting
+        if (data.message) {
+          try {
+            sessionStorage.setItem('__lumi_redirect_message', data.message);
+            sessionStorage.setItem('__lumi_redirect_timestamp', Date.now().toString());
+          } catch (e) {
+            console.warn('Could not store message for redirect:', e);
+          }
+        }
+
         this.closeAll();
 
-        // Small delay to ensure UI closes smoothly before redirect
         setTimeout(() => {
           window.location.href = data.redirection_link;
         }, 100);
@@ -1716,17 +1684,16 @@
         const data = await res.json();
         console.log(data);
 
-        // Check if the current search input still matches
         const currentInputValue = this.$input.value.trim();
         if (currentInputValue !== value) {
           this._busy = false;
           return;
         }
 
-        // NEW: Check for redirection_link first
+        // Check for redirection
         if (this._handleRedirection(data)) {
           this._busy = false;
-          return; // Exit early, redirect will happen
+          return;
         }
 
         if (data.intent === "buy" && data.products?.length) {
@@ -1734,29 +1701,18 @@
           const btn = this.$body.querySelector(".__lumi-deepdive");
           if (btn) btn.addEventListener("click", () => this._deepDive(btn.dataset.q));
         } else if (data.intent === "info" || data.message) {
-          // Properly reset state before navigation
           this._busy = false;
-
-          // Clear the search input to prevent residual state
           if (this.$input) {
             this.$input.value = "";
             this.$input.blur();
           }
-
-          // Reset the body to hint UI
           this._setBody(this._htmlHint());
-
-          // Close search and ensure backdrop is handled
           this.closeSearch();
-
-          // Clear existing chat messages
           if (this.$msgs) {
             this.$msgs.querySelectorAll(".__lumi-msg").forEach(m => m.remove());
           }
-
-          // Open chat with bot message
           this.openChat(data.message);
-          return; // Exit early
+          return;
         } else {
           this._setBody(this._htmlError("No results found for your query."));
         }
@@ -1766,7 +1722,6 @@
           this._setBody(this._htmlError(err.message));
         }
       } finally {
-        // Only reset busy if we didn't navigate to chat or redirect
         if (this._busy) {
           this._busy = false;
         }
@@ -1781,38 +1736,26 @@
 
     _deepDive(query) {
       const q = `Tell me more about: ${query}`;
-
-      // Clear any pending searches
       this._debouncedSearch.cancel();
       this._busy = false;
-
-      // Clear search input
       if (this.$input) {
         this.$input.value = "";
         this.$input.blur();
       }
-
       this.closeSearch();
-
-      // Reset chat messages
       if (this.$msgs) {
         this.$msgs.querySelectorAll(".__lumi-msg").forEach(m => m.remove());
       }
-
-      // Open chat and send message
       this.openChat();
       this._userMsg(this._escapeHtml(q));
       this._callApi(q);
     }
 
     async _sendMsg() {
-      // Clear HTML before processing
       this._clearHtmlFromInput(this.$ta);
-
       const { ok, value, reason } = this._sanitizeInput(this.$ta.value);
       if (!ok) {
         this._botMsg(reason);
-        // Clear the textarea if it contains invalid content
         if (reason.includes("HTML") || reason.includes("tags")) {
           this.$ta.value = "";
         }
@@ -1841,11 +1784,11 @@
         const data = await res.json();
         typing.remove();
 
-        // NEW: Check for redirection_link in chat responses too
+        // Check for redirection
         if (this._handleRedirection(data)) {
           this._busy = false;
           this.$sendBtn.disabled = false;
-          return; // Exit early, redirect will happen
+          return;
         }
 
         if (data.intent === "buy" && data.products?.length) {
@@ -1903,7 +1846,6 @@
         const cleanDesc = stripHtml(p.description);
         const card = document.createElement("a");
         card.className = "__lumi-chat-product-card";
-        // Clean the link by removing domain
         card.href = cleanLinkUrl(p.product_link || p.eshop_link || "#");
         card.rel = "noopener";
         card.style.animationDelay = `${i * 45}ms`;
@@ -1911,12 +1853,7 @@
         card.innerHTML = `
           <div class="__lumi-chat-product-thumb">
             ${imgUrl
-            ? `<img
-      src="${imgUrl}"
-      alt="${p.product_name}"
-      loading="lazy"
-      onerror="this.remove();"
-    >`
+            ? `<img src="${imgUrl}" alt="${p.product_name}" loading="lazy" onerror="this.remove();">`
             : I.product
           }
           </div>
@@ -1983,6 +1920,76 @@
       this._inst = null;
     },
   };
+
+  // ─── AFTER REDIRECT: Show message in chat popup ───
+  (function displayRedirectedMessage() {
+    try {
+      const message = sessionStorage.getItem('__lumi_redirect_message');
+      const timestamp = sessionStorage.getItem('__lumi_redirect_timestamp');
+
+      if (message && timestamp) {
+        const age = Date.now() - parseInt(timestamp);
+        if (age < 10000) {
+          // Clear the stored message immediately
+          sessionStorage.removeItem('__lumi_redirect_message');
+          sessionStorage.removeItem('__lumi_redirect_timestamp');
+
+          const showMessageInChat = () => {
+            // Check if Lumi widget exists
+            if (window.LumiSearch && window.LumiSearch._inst) {
+              const inst = window.LumiSearch._inst;
+
+              // Clear existing messages
+              if (inst.$msgs) {
+                inst.$msgs.querySelectorAll(".__lumi-msg").forEach(m => m.remove());
+              }
+
+              // Open chat and show the message
+              if (inst._chatOpen) {
+                inst._botMsg(message);
+              } else {
+                inst.openChat(message);
+              }
+            } else {
+              // If Lumi widget doesn't exist, initialize it first
+              const script = document.querySelector('script[data-lumi-auto]');
+              if (script) {
+                // Wait for Lumi to initialize, then show message
+                const checkAndShow = () => {
+                  if (window.LumiSearch && window.LumiSearch._inst) {
+                    const inst = window.LumiSearch._inst;
+                    if (inst.$msgs) {
+                      inst.$msgs.querySelectorAll(".__lumi-msg").forEach(m => m.remove());
+                    }
+                    if (inst._chatOpen) {
+                      inst._botMsg(message);
+                    } else {
+                      inst.openChat(message);
+                    }
+                  } else {
+                    setTimeout(checkAndShow, 100);
+                  }
+                };
+                setTimeout(checkAndShow, 300);
+              }
+            }
+          };
+
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', showMessageInChat);
+          } else {
+            setTimeout(showMessageInChat, 500);
+          }
+        } else {
+          // Message too old, clear it
+          sessionStorage.removeItem('__lumi_redirect_message');
+          sessionStorage.removeItem('__lumi_redirect_timestamp');
+        }
+      }
+    } catch (e) {
+      // Silently fail
+    }
+  })();
 
   const init = () => {
     const s = document.querySelector("script[data-lumi-auto]");
