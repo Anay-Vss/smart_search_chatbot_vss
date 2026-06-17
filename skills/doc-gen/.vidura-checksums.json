@@ -1,0 +1,11 @@
+{
+  "api-extractor.md": "b78a748f86fdb07accbbac32c4f6f35bb2891d9244085dc16b0ef0ebda28abb6",
+  "critic.md": "7a56cc65065eaf96253e155c9747673ce01caf63118e9fd62959dcee555e7e0c",
+  "evaluator.md": "c5993c4ac9201ae006c5a7fc486c9a79c3e64ae34e9ad351b767758af7d14007",
+  "pattern-extractor.md": "c76236cd0554dd136f5de01640ba33949ef5631093c9cc892ff7046d894c97ec",
+  "primary-agent.md": "746504ed2a2c04a755723e6d552a347a699a08d7792660403d74cd591579c27d",
+  "style-concise.md": "dd8a98fd393abab2bc5ee1057d9b1f1af1e2f91d26e502fc93b7e9a67f44b08e",
+  "style-detailed.md": "0bb654af9d238a68a7ea4649eeb63fa0313833e21e1ac899352bcd915d29f0cc",
+  "style-enterprise.md": "7be191bc86cba061f53bd71452d3c6309f28edc9d5867307dfca3162bd1c3d69",
+  "validator.md": "55539c577b70729ed9822b4e13ebf855cbdf2a9cde3fdb3df27c60aca42489d8"
+}
