@@ -1,0 +1,59 @@
+# Vidura — doc-gen Agent
+#
+# Add this file to .github/workflows/ in your repository.
+# No secrets or tokens required — authentication uses GitHub OIDC automatically.
+#
+# One-time setup via the Vidura platform:
+#   1. Install the Vidura GitHub App on your org (one click)
+#   2. Configure the agent for this repo in the Vidura dashboard
+#   3. Commit this file
+
+name: Vidura — doc-gen
+
+on:
+  push:
+    branches-ignore:
+     -main
+     - master None
+
+permissions:
+  id-token: write   # required for OIDC authentication
+  contents: write
+
+jobs:
+  doc-gen:
+    name: Generate API Documentation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Vidura
+        run: pip install vidura==0.2.19
+      
+      - name: Configure git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+ 
+      - name: Init agent
+        run: vidura init --agent doc-gen
+ 
+      - name: Run doc-gen agent
+        run: vidura run --agent doc-gen --config-url https://vidura-saas-service-production.up.railway.app/api/v1/config
+        
+      - name: Push all docs
+        if: always()
+        run: |
+          git add docs/ skills/ .agent/ .vidura/memory/
+          git diff --staged --quiet || git commit -m "docs: auto-generated documentation"
+          git pull --rebase origin HEAD
+          git push origin HEAD
