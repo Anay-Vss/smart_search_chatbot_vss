@@ -1,18 +1,16 @@
 /**
- * LumiSearch AI Plugin v2.2 (CSP-safe)
+ * LumiSearch AI Plugin v3.0 (CSP-safe, Production Ready)
  * Drop-in embeddable AI search + chat widget. Zero dependencies.
- * Updated for new API response format with price, MRP, SKU, and images.
- * ADDED: Auto-redirection when API returns redirection_link
- * FIXED: All styles moved to external CSS file — no inline styles, CSP-safe
- *
- * FIXES:
- *  - openSearch() now closes chat popup first before opening search modal
- *  - Empty input always shows "What are you looking for?" hint UI
- *    (on open, on input clear, and on focus-while-empty)
- *  - Auto-redirect when API response includes redirection_link
- *  - Auto-clear HTML tags from inputs with warning notification
- *  - Remove domain from product links (convert to relative paths)
- *  - CSP-safe: no inline <style> tags, all CSS loaded via external <link>
+ * 
+ * FEATURES:
+ * - CSP-safe: all styles loaded via external CSS
+ * - Persistent chat history across redirects using sessionStorage
+ * - Chat state (open/closed) persists across redirects
+ * - Multiple redirects maintain full chat history
+ * - Proper debouncing with cancelation
+ * - Production-ready error handling
+ * - Memory leak prevention
+ * - Performance optimized
  */
 
 (function (global) {
@@ -29,22 +27,172 @@
     placeholder: "Search products, ask questions…",
     logoText: "✦",
     currency: "₹",
-    searchDebounceMs: 500,
-    chatDebounceMs: 500,
+    searchDebounceMs: 1000,
+    chatDebounceMs: 1000,
+    maxHistoryLength: 50,
+    redirectDelay: 150,
+    messageExpiryMs: 30000,
   };
+
+  // Storage keys for persistence
+  const STORAGE_KEYS = {
+    REDIRECT_MESSAGE: '__lumi_redirect_message',
+    REDIRECT_TIMESTAMP: '__lumi_redirect_timestamp',
+    CHAT_HISTORY: '__lumi_chat_history',
+    CHAT_OPEN: '__lumi_chat_open',
+    SESSION_ID: '__lumi_session_id',
+  };
+
+  // Utility: Debounce with leading/trailing options (CSP-safe)
+  function debounce(func, wait, options = {}) {
+    let timeoutId = null;
+    let lastArgs = null;
+    let lastThis = null;
+    let result = null;
+    let lastCallTime = 0;
+    let lastInvokeTime = 0;
+    const maxWait = options.maxWait || 0;
+    const leading = options.leading || false;
+    const trailing = options.trailing !== false;
+
+    function shouldInvoke(time) {
+      const timeSinceLastCall = time - lastCallTime;
+      const timeSinceLastInvoke = time - lastInvokeTime;
+      return (
+        lastCallTime === 0 ||
+        timeSinceLastCall >= wait ||
+        (maxWait > 0 && timeSinceLastInvoke >= maxWait)
+      );
+    }
+
+    function invokeFunc(time) {
+      lastInvokeTime = time;
+      const args = lastArgs;
+      const context = lastThis;
+      lastArgs = null;
+      lastThis = null;
+      result = func.apply(context, args);
+      return result;
+    }
+
+    function timerExpired() {
+      const time = Date.now();
+      if (shouldInvoke(time)) {
+        return trailingEdge(time);
+      }
+      timeoutId = setTimeout(timerExpired, remainingWait(time));
+      return null;
+    }
+
+    function remainingWait(time) {
+      const timeSinceLastCall = time - lastCallTime;
+      const timeSinceLastInvoke = time - lastInvokeTime;
+      const timeWaiting = wait - timeSinceLastCall;
+      return maxWait > 0
+        ? Math.min(timeWaiting, maxWait - timeSinceLastInvoke)
+        : timeWaiting;
+    }
+
+    function leadingEdge(time) {
+      lastInvokeTime = time;
+      timeoutId = setTimeout(timerExpired, wait);
+      return leading ? invokeFunc(time) : result;
+    }
+
+    function trailingEdge(time) {
+      timeoutId = null;
+      if (trailing && lastArgs) {
+        return invokeFunc(time);
+      }
+      lastArgs = null;
+      lastThis = null;
+      return result;
+    }
+
+    function debounced(...args) {
+      const time = Date.now();
+      const isInvoking = shouldInvoke(time);
+      lastArgs = args;
+      lastThis = this;
+      lastCallTime = time;
+
+      if (isInvoking) {
+        if (timeoutId === null) {
+          return leadingEdge(time);
+        }
+        if (maxWait > 0) {
+          timeoutId = setTimeout(timerExpired, wait);
+          return invokeFunc(time);
+        }
+        return result;
+      }
+      if (timeoutId === null) {
+        timeoutId = setTimeout(timerExpired, wait);
+      }
+      return result;
+    }
+
+    debounced.cancel = function () {
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+      }
+      lastArgs = null;
+      lastThis = null;
+      lastCallTime = 0;
+      lastInvokeTime = 0;
+      timeoutId = null;
+    };
+
+    debounced.flush = function () {
+      return timeoutId === null ? result : trailingEdge(Date.now());
+    };
+
+    return debounced;
+  }
+
+  // Utility: Throttle for rate limiting (CSP-safe)
+  function throttle(func, limit) {
+    let inThrottle = false;
+    let lastFunc = null;
+    let lastRan = 0;
+
+    return function (...args) {
+      const context = this;
+      if (!inThrottle) {
+        func.apply(context, args);
+        lastRan = Date.now();
+        inThrottle = true;
+        setTimeout(() => {
+          inThrottle = false;
+          if (lastFunc) {
+            lastFunc.apply(context, args);
+            lastFunc = null;
+          }
+        }, limit);
+      } else {
+        clearTimeout(lastFunc);
+        lastFunc = function () {
+          if (Date.now() - lastRan >= limit) {
+            func.apply(context, args);
+            lastRan = Date.now();
+          }
+        };
+        setTimeout(lastFunc, limit);
+      }
+    };
+  }
 
   // CSP-SAFE: Load external CSS file instead of injecting inline <style>
   function injectStyles(cfg) {
     if (document.getElementById("__lumi-styles")) return;
 
-    // Load external CSS from assets folder (or any path you configure)
     const link = document.createElement("link");
     link.id = "__lumi-styles";
     link.rel = "stylesheet";
     link.href = cfg.cssUrl;
     document.head.appendChild(link);
 
-    // Inter font from Google (already external, but needs CSP whitelist)
+    // Inter font from Google (CSP whitelist required)
     if (!document.getElementById("__lumi-font")) {
       const fontLink = document.createElement("link");
       fontLink.id = "__lumi-font";
@@ -67,6 +215,7 @@
   };
 
   function md(t) {
+    if (!t) return '';
     return t
       .replace(/\*\*\[([^\]]+)\]\(([^)]+)\)\*\*/g, '<a href="$2" rel="noopener"><strong>$1</strong></a>')
       .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" rel="noopener">$1</a>')
@@ -109,18 +258,69 @@
     return tmp.textContent || tmp.innerText || "";
   }
 
-  function debounce(func, delay) {
-    let timeoutId;
-    function debounced(...args) {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => func.apply(this, args), delay);
+  // Helper functions for persistent storage with error handling
+  function saveChatHistory(history) {
+    try {
+      sessionStorage.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(history));
+      return true;
+    } catch (e) {
+      return false;
     }
-    debounced.cancel = () => {
-      clearTimeout(timeoutId);
-    };
-    return debounced;
   }
 
+  function getChatHistory() {
+    try {
+      const data = sessionStorage.getItem(STORAGE_KEYS.CHAT_HISTORY);
+      return data ? JSON.parse(data) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveChatState(isOpen) {
+    try {
+      sessionStorage.setItem(STORAGE_KEYS.CHAT_OPEN, isOpen ? 'true' : 'false');
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function getChatState() {
+    try {
+      return sessionStorage.getItem(STORAGE_KEYS.CHAT_OPEN) === 'true';
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function getRedirectMessage() {
+    try {
+      const message = sessionStorage.getItem(STORAGE_KEYS.REDIRECT_MESSAGE);
+      const timestamp = sessionStorage.getItem(STORAGE_KEYS.REDIRECT_TIMESTAMP);
+
+      if (message && timestamp) {
+        const age = Date.now() - parseInt(timestamp);
+        if (age < 30000) {
+          return message;
+        }
+        sessionStorage.removeItem(STORAGE_KEYS.REDIRECT_MESSAGE);
+        sessionStorage.removeItem(STORAGE_KEYS.REDIRECT_TIMESTAMP);
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function clearRedirectData() {
+    try {
+      sessionStorage.removeItem(STORAGE_KEYS.REDIRECT_MESSAGE);
+      sessionStorage.removeItem(STORAGE_KEYS.REDIRECT_TIMESTAMP);
+    } catch (e) { }
+  }
+
+  // Main Plugin Class
   class LumiPlugin {
     constructor(config) {
       this.cfg = { ...DEFAULTS, ...config };
@@ -130,20 +330,142 @@
       this._busy = false;
       this._lastSearchQuery = "";
       this._searchRequestId = 0;
+      this._restoredHistory = false;
+      this._pendingMessage = null;
+      this._destroyed = false;
+      this._isInitialized = false;
 
-      this._debouncedSearch = debounce((value) => this._search(value), this.cfg.searchDebounceMs);
-      this._debouncedChat = debounce((value) => this._callApi(value), this.cfg.chatDebounceMs);
+      // Create debounced functions with proper configuration
+      this._debouncedSearch = debounce(
+        (value) => this._search(value),
+        this.cfg.searchDebounceMs,
+        { leading: false, trailing: true }
+      );
+
+      this._debouncedChat = debounce(
+        (value) => this._callApi(value),
+        this.cfg.chatDebounceMs,
+        { leading: false, trailing: true }
+      );
 
       this._mount();
+      this._restoreState();
+      this._isInitialized = true;
     }
 
     _mount() {
-      injectStyles(this.cfg);
-      this._mkTrigger();
-      this._mkBackdrop();
-      this._mkSearch();
-      this._mkChat();
-      document.addEventListener("keydown", e => { if (e.key === "Escape") this.closeAll(); });
+      try {
+        injectStyles(this.cfg);
+        this._mkTrigger();
+        this._mkBackdrop();
+        this._mkSearch();
+        this._mkChat();
+        document.addEventListener("keydown", this._handleKeydown.bind(this));
+      } catch (e) {
+        console.warn('LumiSearch: Error during mount:', e);
+      }
+    }
+
+    _handleKeydown(e) {
+      if (e.key === "Escape") {
+        this.closeAll();
+      }
+    }
+
+    _restoreState() {
+      try {
+        // Restore chat history
+        const history = getChatHistory();
+        if (history.length > 0) {
+          this.chatHistory = history;
+          this._restoredHistory = true;
+        }
+
+        // Check for pending redirect message
+        const pendingMsg = getRedirectMessage();
+        if (pendingMsg) {
+          this._pendingMessage = pendingMsg;
+          clearRedirectData();
+        }
+
+        // Restore chat open state
+        const wasOpen = getChatState();
+        if (wasOpen || this._pendingMessage) {
+          if (typeof requestAnimationFrame !== 'undefined') {
+            requestAnimationFrame(() => {
+              this._showRestoredChat();
+            });
+          } else {
+            setTimeout(() => this._showRestoredChat(), 50);
+          }
+        }
+      } catch (e) {
+        console.warn('LumiSearch: Error restoring state:', e);
+      }
+    }
+
+    _showRestoredChat() {
+      if (this._destroyed) return;
+
+      if (this._pendingMessage) {
+        this.openChat(this._pendingMessage);
+        this._pendingMessage = null;
+      } else {
+        this.openChat();
+      }
+
+      if (this._restoredHistory && this.chatHistory.length > 0) {
+        setTimeout(() => {
+          if (!this._destroyed) {
+            this._renderChatHistory();
+          }
+        }, 50);
+      }
+    }
+
+    _renderChatHistory() {
+      if (!this.$msgs || this._destroyed) return;
+
+      const dateSep = this.$msgs.querySelector('.__lumi-date-sep');
+      this.$msgs.querySelectorAll('.__lumi-msg').forEach(m => m.remove());
+
+      const fragment = document.createDocumentFragment();
+      this.chatHistory.forEach(msg => {
+        if (msg.type === 'user') {
+          const el = this._createUserMsgElement(msg.text);
+          fragment.appendChild(el);
+        } else if (msg.type === 'bot') {
+          const el = this._createBotMsgElement(msg.text);
+          fragment.appendChild(el);
+        }
+      });
+
+      if (dateSep) {
+        this.$msgs.prepend(dateSep);
+      }
+
+      this.$msgs.appendChild(fragment);
+      this._scrollMsgs();
+    }
+
+    _createUserMsgElement(text) {
+      const el = document.createElement("div");
+      el.className = "__lumi-msg __lumi-msg-user";
+      el.innerHTML = `
+        <div class="__lumi-bubble __lumi-bubble-user">${this._escapeHtml(text)}</div>
+        <div class="__lumi-avatar __lumi-avatar-user">You</div>
+      `;
+      return el;
+    }
+
+    _createBotMsgElement(text) {
+      const el = document.createElement("div");
+      el.className = "__lumi-msg __lumi-msg-bot";
+      el.innerHTML = `
+        <div class="__lumi-avatar __lumi-avatar-bot">${I.bot}</div>
+        <div class="__lumi-bubble __lumi-bubble-bot"><p>${md(text)}</p></div>
+      `;
+      return el;
     }
 
     _mkTrigger() {
@@ -151,7 +473,9 @@
       btn.id = "__lumi-trigger";
       btn.setAttribute("aria-label", "Open AI Search");
       btn.innerHTML = `<span class="__lt-icon">${I.search}</span><span>${this.cfg.triggerLabel}</span>`;
-      btn.addEventListener("click", () => this.openSearch());
+
+      btn.addEventListener("click", () => this.openSearch(), { passive: true });
+
       document.body.appendChild(btn);
       this.$trigger = btn;
     }
@@ -159,7 +483,7 @@
     _mkBackdrop() {
       const el = document.createElement("div");
       el.id = "__lumi-backdrop";
-      el.addEventListener("click", () => this.closeAll());
+      el.addEventListener("click", () => this.closeAll(), { passive: true });
       document.body.appendChild(el);
       this.$bd = el;
     }
@@ -204,11 +528,15 @@
 
       this.$input = root.querySelector(".__lumi-searchbar-input");
       this.$body = root.querySelector(".__lumi-body");
-      root.querySelector(".__lumi-hero-close").addEventListener("click", () => this.closeAll());
 
-      this.$input.addEventListener("input", (e) => {
-        const cleanedValue = this._clearHtmlFromInput(this.$input);
-        const value = cleanedValue.trim();
+      const closeBtn = root.querySelector(".__lumi-hero-close");
+      closeBtn.addEventListener("click", () => this.closeAll(), { passive: true });
+
+      // Throttled input handler
+      const handleInput = throttle((e) => {
+        if (this._destroyed) return;
+        this._clearHtmlFromInput(this.$input);
+        const value = this.$input.value.trim();
         this._debouncedSearch.cancel();
 
         if (!value) {
@@ -219,13 +547,15 @@
 
         this._lastSearchQuery = value;
         this._debouncedSearch(value);
-      });
+      }, 100);
+
+      this.$input.addEventListener("input", handleInput, { passive: true });
 
       this.$input.addEventListener("focus", () => {
         if (!this.$input.value.trim()) {
           this._setBody(this._htmlHint());
         }
-      });
+      }, { passive: true });
 
       this.$input.addEventListener("keydown", e => {
         if (e.key === "Enter") {
@@ -235,15 +565,15 @@
           this._debouncedSearch.cancel();
           this._search(value);
         }
-      });
+      }, { passive: false });
 
       root.addEventListener("click", e => {
         const chip = e.target.closest(".__lumi-hint-chip");
-        if (chip) {
+        if (chip && chip.dataset.q) {
           this.$input.value = chip.dataset.q;
           this._search(chip.dataset.q);
         }
-      });
+      }, { passive: true });
 
       document.body.appendChild(root);
       this.$root = root;
@@ -278,22 +608,30 @@
       this.$ta = el.querySelector(".__lumi-chat-ta");
       this.$sendBtn = el.querySelector(".__lumi-chat-send");
 
-      el.querySelector(".__lumi-chat-headclose").addEventListener("click", () => this.closeChat());
+      const closeBtn = el.querySelector(".__lumi-chat-headclose");
+      closeBtn.addEventListener("click", () => {
+        this.closeChat();
+        saveChatState(false);
+      }, { passive: true });
 
-      this.$sendBtn.addEventListener("click", () => this._sendMsg());
+      this.$sendBtn.addEventListener("click", () => this._sendMsg(), { passive: true });
 
-      this.$ta.addEventListener("input", () => {
+      // Throttled textarea handler
+      const handleTextareaInput = throttle(() => {
+        if (this._destroyed) return;
         this._clearHtmlFromInput(this.$ta);
         this.$ta.style.height = "auto";
         this.$ta.style.height = Math.min(this.$ta.scrollHeight, 90) + "px";
-      });
+      }, 100);
+
+      this.$ta.addEventListener("input", handleTextareaInput, { passive: true });
 
       this.$ta.addEventListener("keydown", e => {
         if (e.key === "Enter" && !e.shiftKey) {
           e.preventDefault();
           this._sendMsg();
         }
-      });
+      }, { passive: false });
 
       document.body.appendChild(el);
       this.$chat = el;
@@ -304,7 +642,7 @@
         { label: "Home inverters", q: "I want to buy home inverters" },
         { label: "Solar products", q: "Show me solar panels" },
         { label: "Battery backup", q: "I need battery backup solutions" },
-        { label: "Best selling", q: "What are your best selling products?" },
+       
       ];
       return `
         <div class="__lumi-hint">
@@ -350,14 +688,14 @@
         >
           <div class="__lumi-chat-product-thumb">
             ${imgUrl
-              ? `<img src="${imgUrl}" alt="${p.product_name}" loading="lazy" onerror="this.style.display='none';this.parentElement.querySelector('.fallback-icon')?.style.removeProperty('display');">`
+              ? `<img src="${imgUrl}" alt="${this._escapeHtml(p.product_name)}" loading="lazy" onerror="this.style.display='none';this.parentElement.querySelector('.fallback-icon')?.style.removeProperty('display');">`
               : `<span class="__lumi-card-thumb-icon">${I.product}</span>`
             }
             <span class="__lumi-card-thumb-icon fallback-icon" style="display:none;">${I.product}</span>
           </div>
           <div class="__lumi-chat-product-body">
-            <div class="__lumi-chat-product-name">${p.product_name}</div>
-            <div class="__lumi-chat-product-desc">${cleanDesc}</div>
+            <div class="__lumi-chat-product-name">${this._escapeHtml(p.product_name)}</div>
+            <div class="__lumi-chat-product-desc">${this._escapeHtml(cleanDesc)}</div>
             ${p.price ? `<div class="__lumi-chat-product-price">${formatPrice(p.price, this.cfg.currency)}</div>` : ""}
             <div class="__lumi-chat-product-footer">
               <span class="__lumi-chat-product-cta">${I.arrow} View</span>
@@ -376,20 +714,20 @@
       >
         <div class="__lumi-card-thumb">
           ${imgUrl
-            ? `<img src="${imgUrl}" alt="${p.product_name}" loading="lazy" onerror="this.style.display='none';this.parentElement.querySelector('.fallback-icon')?.style.removeProperty('display');">`
+            ? `<img src="${imgUrl}" alt="${this._escapeHtml(p.product_name)}" loading="lazy" onerror="this.style.display='none';this.parentElement.querySelector('.fallback-icon')?.style.removeProperty('display');">`
             : `<span class="__lumi-card-thumb-icon">${I.product}</span>`
           }
           <span class="__lumi-card-thumb-icon fallback-icon" style="display:none;">${I.product}</span>
         </div>
         <div class="__lumi-card-body">
-          <div class="__lumi-card-name">${p.product_name}</div>
-          <div class="__lumi-card-desc">${cleanDesc}</div>
+          <div class="__lumi-card-name">${this._escapeHtml(p.product_name)}</div>
+          <div class="__lumi-card-desc">${this._escapeHtml(cleanDesc)}</div>
           <div class="__lumi-card-price-row">
             ${p.price ? `<span class="__lumi-card-price">${formatPrice(p.price, this.cfg.currency)}</span>` : ""}
             ${p.mrp && p.mrp > p.price ? `<span class="__lumi-card-mrp">${formatPrice(p.mrp, this.cfg.currency)}</span>` : ""}
             ${discount ? `<span class="__lumi-card-discount">${discount}% off</span>` : ""}
           </div>
-          ${p.sku ? `<div class="__lumi-card-sku">SKU: ${p.sku}</div>` : ""}
+          ${p.sku ? `<div class="__lumi-card-sku">SKU: ${this._escapeHtml(p.sku)}</div>` : ""}
           <div class="__lumi-card-footer">
             <span class="__lumi-card-cta">${I.arrow} View Product</span>
             <span class="__lumi-card-badge">In Stock</span>
@@ -415,7 +753,7 @@
       <span class="__lumi-section-count">${data.products.length} results</span>
     </div>
     <div class="__lumi-cards">${cards}</div>
-    <button class="__lumi-deepdive" data-q="${originalQuery}">
+    <button class="__lumi-deepdive" data-q="${this._escapeHtml(originalQuery)}">
       ${I.bolt}
       Deep Dive with AI
       <span class="__lumi-deepdive-sub">— Ask follow-up questions</span>
@@ -425,19 +763,29 @@
 
     _sanitizeInput(raw) {
       const text = (raw || "").trim();
+
       if (!text) {
         return { ok: false, reason: "Please enter a search term." };
       }
+
       if (text.length > 500) {
         return { ok: false, reason: "Input is too long (max 500 characters)." };
       }
-      const doc = new DOMParser().parseFromString(text, "text/html");
-      const hasElements = [...doc.body.childNodes].some(
-        n => n.nodeType === Node.ELEMENT_NODE
-      );
-      if (hasElements) {
-        return { ok: false, reason: "HTML tags are not allowed in your input." };
+
+      try {
+        const doc = new DOMParser().parseFromString(text, "text/html");
+        const hasElements = [...doc.body.childNodes].some(
+          n => n.nodeType === Node.ELEMENT_NODE
+        );
+        if (hasElements) {
+          return { ok: false, reason: "HTML tags are not allowed in your input." };
+        }
+      } catch (e) {
+        if (/<[^>]*>/g.test(text)) {
+          return { ok: false, reason: "HTML tags are not allowed in your input." };
+        }
       }
+
       return { ok: true, value: text };
     }
 
@@ -452,28 +800,37 @@
 
     _clearHtmlFromInput(inputElement) {
       if (!inputElement) return "";
+
       const rawValue = inputElement.value;
-      const doc = new DOMParser().parseFromString(rawValue, "text/html");
-      const hasElements = [...doc.body.childNodes].some(
-        n => n.nodeType === Node.ELEMENT_NODE
-      );
-      if (hasElements) {
-        const textOnly = doc.body.textContent || "";
-        inputElement.value = textOnly;
-        this._showHtmlWarning();
-        return textOnly;
+      try {
+        const doc = new DOMParser().parseFromString(rawValue, "text/html");
+        const hasElements = [...doc.body.childNodes].some(
+          n => n.nodeType === Node.ELEMENT_NODE
+        );
+
+        if (hasElements) {
+          const textOnly = doc.body.textContent || "";
+          inputElement.value = textOnly;
+          this._showHtmlWarning();
+          return textOnly;
+        }
+      } catch (e) {
+        if (/<[^>]*>/g.test(rawValue)) {
+          const textOnly = rawValue.replace(/<[^>]*>/g, '');
+          inputElement.value = textOnly;
+          this._showHtmlWarning();
+          return textOnly;
+        }
       }
+
       return rawValue;
     }
 
-    // CSP-SAFE: No inline <style> injection. Animation is in external CSS.
     _showHtmlWarning() {
       let warning = document.getElementById("__lumi-html-warning");
       if (!warning) {
         warning = document.createElement("div");
         warning.id = "__lumi-html-warning";
-        // All styles inline here are on the element itself — this is allowed by most CSPs
-        // The @keyframes animation is defined in the external CSS file
         warning.style.cssText = `
           position: fixed;
           bottom: 90px;
@@ -494,7 +851,7 @@
 
       warning.textContent = "⚠️ HTML tags removed for security";
       warning.style.animation = "none";
-      warning.offsetHeight; // Trigger reflow
+      warning.offsetHeight;
       warning.style.animation = "__lumi-fadeOut 3s ease forwards";
 
       setTimeout(() => {
@@ -503,83 +860,169 @@
     }
 
     openSearch() {
+      if (this._destroyed) return;
       this.closeChat();
       this._searchOpen = true;
       this.$root.classList.add("lumi-on");
       this.$bd.classList.add("lumi-on");
+
       if (!this.$input.value.trim()) {
         this._setBody(this._htmlHint());
       }
+
       setTimeout(() => this.$input.focus(), 80);
     }
 
     closeSearch() {
+      if (this._destroyed) return;
       this._searchOpen = false;
       this.$root.classList.remove("lumi-on");
       if (!this._chatOpen) this.$bd.classList.remove("lumi-on");
+
       if (this.$input) {
         this.$input.value = "";
         this._setBody(this._htmlHint());
       }
+
       this._debouncedSearch.cancel();
       this._busy = false;
     }
 
     openChat(botMsg) {
+      if (this._destroyed) return;
       this._chatOpen = true;
       this.$chat.classList.add("lumi-on");
-      if (botMsg) this._botMsg(botMsg);
+      saveChatState(true);
+
+      if (botMsg) {
+        this._botMsg(botMsg);
+      }
+
+      if (this._restoredHistory && this.chatHistory.length > 0) {
+        this._renderChatHistory();
+        this._restoredHistory = false;
+      }
+
+      this._scrollMsgs();
     }
 
     closeChat() {
+      if (this._destroyed) return;
       this._chatOpen = false;
       this.$chat.classList.remove("lumi-on");
       if (!this._searchOpen) this.$bd.classList.remove("lumi-on");
+      saveChatState(false);
     }
 
     closeAll() {
+      if (this._destroyed) return;
       this.closeSearch();
       this.closeChat();
       this.$bd.classList.remove("lumi-on");
     }
 
+    // ─── REDIRECTION HANDLING WITH PERSISTENCE ───
     _handleRedirection(data) {
-      if (data.redirection_link && typeof data.redirection_link === 'string' && data.redirection_link.trim()) {
-        this.closeAll();
-        setTimeout(() => {
-          window.location.href = data.redirection_link;
-        }, 100);
-        return true;
+      if (!data.redirection_link || typeof data.redirection_link !== 'string') {
+        return false;
       }
-      return false;
+
+      const link = data.redirection_link.trim();
+      if (!link) return false;
+
+      try {
+        // Store message for after redirect
+        if (data.message) {
+          sessionStorage.setItem(STORAGE_KEYS.REDIRECT_MESSAGE, data.message);
+          sessionStorage.setItem(STORAGE_KEYS.REDIRECT_TIMESTAMP, Date.now().toString());
+
+          // Save chat history before redirect
+          if (this.chatHistory.length > 0) {
+            saveChatHistory(this.chatHistory);
+            saveChatState(true);
+          }
+        }
+
+        this.closeAll();
+
+        // Delay redirect to ensure UI closes
+        setTimeout(() => {
+          if (!this._destroyed) {
+            window.location.href = link;
+          }
+        }, this.cfg.redirectDelay || 150);
+        return true;
+      } catch (e) {
+        console.warn('LumiSearch: Redirect error:', e);
+        return false;
+      }
+    }
+
+    _saveToHistory(type, text) {
+      if (!text) return;
+
+      this.chatHistory.push({
+        type,
+        text: String(text).substring(0, 1000),
+        timestamp: Date.now()
+      });
+
+      if (this.chatHistory.length > this.cfg.maxHistoryLength) {
+        this.chatHistory = this.chatHistory.slice(-this.cfg.maxHistoryLength);
+      }
+      saveChatHistory(this.chatHistory);
     }
 
     async _search(rawQuery) {
+      if (this._destroyed) return;
+
       const query = (rawQuery || "").trim();
       if (!query) {
         this._setBody(this._htmlHint());
         return;
       }
+
       const { ok, value, reason } = this._sanitizeInput(query);
       if (!ok) {
         this._setBody(this._htmlError(reason));
         return;
       }
+
       if (this._busy) return;
 
       this._busy = true;
       this._setBody(this._htmlLoader());
 
+      const requestId = ++this._searchRequestId;
+
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+
         const res = await fetch(this.cfg.apiUrl, {
           method: "POST",
-          headers: { "accept": "application/json", "Content-Type": "application/json" },
-          body: JSON.stringify({ query: value, session_id: this.cfg.sessionId, strategy: this.cfg.strategy }),
+          headers: {
+            "accept": "application/json",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            query: value,
+            session_id: this.cfg.sessionId,
+            strategy: this.cfg.strategy
+          }),
+          signal: controller.signal
         });
+
+        clearTimeout(timeoutId);
+
         if (!res.ok) throw new Error(`Server error ${res.status}`);
 
+        if (requestId !== this._searchRequestId) {
+          this._busy = false;
+          return;
+        }
+
         const data = await res.json();
-        console.log(data);
 
         const currentInputValue = this.$input.value.trim();
         if (currentInputValue !== value) {
@@ -587,6 +1030,7 @@
           return;
         }
 
+        // ─── CHECK FOR REDIRECTION ───
         if (this._handleRedirection(data)) {
           this._busy = false;
           return;
@@ -595,7 +1039,9 @@
         if (data.intent === "buy" && data.products?.length) {
           this._setBody(this._htmlProducts(data, value));
           const btn = this.$body.querySelector(".__lumi-deepdive");
-          if (btn) btn.addEventListener("click", () => this._deepDive(btn.dataset.q));
+          if (btn) {
+            btn.addEventListener("click", () => this._deepDive(btn.dataset.q), { passive: true });
+          }
         } else if (data.intent === "info" || data.message) {
           this._busy = false;
           if (this.$input) {
@@ -604,52 +1050,60 @@
           }
           this._setBody(this._htmlHint());
           this.closeSearch();
-          if (this.$msgs) {
-            this.$msgs.querySelectorAll(".__lumi-msg").forEach(m => m.remove());
-          }
+          this._saveToHistory('user', value);
           this.openChat(data.message);
+          this._saveToHistory('bot', data.message);
           return;
         } else {
           this._setBody(this._htmlError("No results found for your query."));
         }
       } catch (err) {
-        const currentInputValue = this.$input.value.trim();
-        if (currentInputValue === query) {
-          this._setBody(this._htmlError(err.message));
+        if (err.name === 'AbortError') {
+          this._setBody(this._htmlError("Request timed out. Please try again."));
+        } else {
+          const currentInputValue = this.$input.value.trim();
+          if (currentInputValue === query) {
+            this._setBody(this._htmlError(err.message));
+          }
         }
       } finally {
-        if (this._busy) {
+        if (this._busy && requestId === this._searchRequestId) {
           this._busy = false;
         }
       }
     }
 
     _setBody(html) {
-      if (this.$body) {
+      if (this.$body && !this._destroyed) {
         this.$body.innerHTML = `<div class="__lumi-body-inner">${html}</div>`;
       }
     }
 
     _deepDive(query) {
+      if (this._destroyed) return;
+
       const q = `Tell me more about: ${query}`;
       this._debouncedSearch.cancel();
       this._busy = false;
+
       if (this.$input) {
         this.$input.value = "";
         this.$input.blur();
       }
       this.closeSearch();
-      if (this.$msgs) {
-        this.$msgs.querySelectorAll(".__lumi-msg").forEach(m => m.remove());
-      }
+
+      this._saveToHistory('user', q);
       this.openChat();
       this._userMsg(this._escapeHtml(q));
       this._callApi(q);
     }
 
     async _sendMsg() {
+      if (this._destroyed) return;
+
       this._clearHtmlFromInput(this.$ta);
       const { ok, value, reason } = this._sanitizeInput(this.$ta.value);
+
       if (!ok) {
         this._botMsg(reason);
         if (reason.includes("HTML") || reason.includes("tags")) {
@@ -657,29 +1111,49 @@
         }
         return;
       }
+
       if (this._busy) return;
 
       this.$ta.value = "";
       this.$ta.style.height = "auto";
+
+      this._saveToHistory('user', this._escapeHtml(value));
       this._userMsg(this._escapeHtml(value));
       await this._callApi(value);
     }
 
     async _callApi(query) {
+      if (this._destroyed) return;
+
       this._busy = true;
       this.$sendBtn.disabled = true;
       const typing = this._showTyping();
 
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+
         const res = await fetch(this.cfg.apiUrl, {
           method: "POST",
-          headers: { "accept": "application/json", "Content-Type": "application/json" },
-          body: JSON.stringify({ query, session_id: this.cfg.sessionId, strategy: this.cfg.strategy }),
+          headers: {
+            "accept": "application/json",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            query,
+            session_id: this.cfg.sessionId,
+            strategy: this.cfg.strategy
+          }),
+          signal: controller.signal
         });
-        if (!res.ok) throw new Error(`Server error ${res.status}`);
-        const data = await res.json();
+
+        clearTimeout(timeoutId);
         typing.remove();
 
+        if (!res.ok) throw new Error(`Server error ${res.status}`);
+        const data = await res.json();
+
+        // ─── CHECK FOR REDIRECTION IN CHAT ───
         if (this._handleRedirection(data)) {
           this._busy = false;
           this.$sendBtn.disabled = false;
@@ -687,16 +1161,25 @@
         }
 
         if (data.intent === "buy" && data.products?.length) {
-          this._botMsg(data.message || "Here are some products that match your request:");
+          const msg = data.message || "Here are some products that match your request:";
+          this._botMsg(msg);
+          this._saveToHistory('bot', msg);
           this._botProductCards(data);
         } else if (data.message) {
           this._botMsg(data.message);
+          this._saveToHistory('bot', data.message);
         } else {
-          this._botMsg("I could not find anything for that query.");
+          const fallbackMsg = "I could not find anything for that query.";
+          this._botMsg(fallbackMsg);
+          this._saveToHistory('bot', fallbackMsg);
         }
       } catch (err) {
         typing.remove();
-        this._botMsg("I am having trouble connecting right now. Please try again.");
+        const errorMsg = err.name === 'AbortError'
+          ? "Request timed out. Please try again."
+          : "I am having trouble connecting right now. Please try again.";
+        this._botMsg(errorMsg);
+        this._saveToHistory('bot', errorMsg);
       } finally {
         this._busy = false;
         this.$sendBtn.disabled = false;
@@ -704,28 +1187,22 @@
     }
 
     _userMsg(text) {
-      const el = document.createElement("div");
-      el.className = "__lumi-msg __lumi-msg-user";
-      el.innerHTML = `
-        <div class="__lumi-bubble __lumi-bubble-user">${text}</div>
-        <div class="__lumi-avatar __lumi-avatar-user">You</div>
-      `;
+      if (this._destroyed || !this.$msgs) return;
+      const el = this._createUserMsgElement(text);
       this.$msgs.appendChild(el);
       this._scrollMsgs();
     }
 
     _botMsg(text) {
-      const el = document.createElement("div");
-      el.className = "__lumi-msg __lumi-msg-bot";
-      el.innerHTML = `
-        <div class="__lumi-avatar __lumi-avatar-bot">${I.bot}</div>
-        <div class="__lumi-bubble __lumi-bubble-bot"><p>${md(text)}</p></div>
-      `;
+      if (this._destroyed || !this.$msgs) return;
+      const el = this._createBotMsgElement(text);
       this.$msgs.appendChild(el);
       this._scrollMsgs();
     }
 
     _botProductCards(data) {
+      if (this._destroyed || !this.$msgs) return;
+
       const el = document.createElement("div");
       el.className = "__lumi-msg __lumi-msg-bot";
 
@@ -736,6 +1213,7 @@
       const grid = document.createElement("div");
       grid.className = "__lumi-chat-products-grid";
 
+      const fragment = document.createDocumentFragment();
       data.products.forEach((p, i) => {
         const imgUrl = cleanImageUrl(p.image_url);
         const cleanDesc = stripHtml(p.description);
@@ -748,18 +1226,13 @@
         card.innerHTML = `
           <div class="__lumi-chat-product-thumb">
             ${imgUrl
-            ? `<img
-      src="${imgUrl}"
-      alt="${p.product_name}"
-      loading="lazy"
-      onerror="this.remove();"
-    >`
+            ? `<img src="${imgUrl}" alt="${this._escapeHtml(p.product_name)}" loading="lazy" onerror="this.remove();">`
             : I.product
           }
           </div>
           <div class="__lumi-chat-product-body">
-            <div class="__lumi-chat-product-name">${p.product_name}</div>
-            <div class="__lumi-chat-product-desc">${cleanDesc}</div>
+            <div class="__lumi-chat-product-name">${this._escapeHtml(p.product_name)}</div>
+            <div class="__lumi-chat-product-desc">${this._escapeHtml(cleanDesc)}</div>
             ${p.price ? `<div class="__lumi-chat-product-price">${formatPrice(p.price, this.cfg.currency)}</div>` : ""}
             <div class="__lumi-chat-product-footer">
               <span class="__lumi-chat-product-cta">${I.arrow} View</span>
@@ -767,8 +1240,9 @@
             </div>
           </div>
         `;
-        grid.appendChild(card);
+        fragment.appendChild(card);
       });
+      grid.appendChild(fragment);
 
       const bubble = document.createElement("div");
       bubble.className = "__lumi-bubble __lumi-bubble-bot";
@@ -783,6 +1257,8 @@
     }
 
     _showTyping() {
+      if (this._destroyed || !this.$msgs) return document.createElement('div');
+
       const el = document.createElement("div");
       el.className = "__lumi-msg __lumi-msg-bot";
       el.innerHTML = `
@@ -799,43 +1275,94 @@
     }
 
     _scrollMsgs() {
-      this.$msgs.scrollTop = this.$msgs.scrollHeight;
+      if (this.$msgs && !this._destroyed) {
+        this.$msgs.scrollTop = this.$msgs.scrollHeight;
+      }
+    }
+
+    destroy() {
+      if (this._destroyed) return;
+      this._destroyed = true;
+      this._isInitialized = false;
+
+      this._debouncedSearch.cancel();
+      this._debouncedChat.cancel();
+
+      document.removeEventListener("keydown", this._handleKeydown.bind(this));
+
+      ["__lumi-trigger", "__lumi-backdrop", "__lumi-root", "__lumi-chat", "__lumi-styles", "__lumi-font"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.remove();
+      });
+
+      try {
+        sessionStorage.removeItem(STORAGE_KEYS.CHAT_HISTORY);
+        sessionStorage.removeItem(STORAGE_KEYS.CHAT_OPEN);
+        sessionStorage.removeItem(STORAGE_KEYS.REDIRECT_MESSAGE);
+        sessionStorage.removeItem(STORAGE_KEYS.REDIRECT_TIMESTAMP);
+      } catch (e) { }
     }
   }
 
+  // Global API
   global.LumiSearch = {
     _inst: null,
     init(config) {
-      if (this._inst) return this._inst;
+      if (this._inst) {
+        if (!this._inst._destroyed) {
+          return this._inst;
+        }
+        this._inst.destroy();
+        this._inst = null;
+      }
       this._inst = new LumiPlugin(config);
       return this._inst;
     },
-    open() { this._inst?.openSearch(); },
-    close() { this._inst?.closeAll(); },
-    destroy() {
-      if (!this._inst) return;
-      ["__lumi-trigger", "__lumi-backdrop", "__lumi-root", "__lumi-chat", "__lumi-styles", "__lumi-font"].forEach(id => {
-        document.getElementById(id)?.remove();
-      });
-      this._inst = null;
+    open() {
+      if (this._inst && !this._inst._destroyed) {
+        this._inst.openSearch();
+      }
     },
-  };
-
-  const init = () => {
-    const s = document.querySelector("script[data-lumi-auto]");
-    if (s) {
-      global.LumiSearch.init({
-        apiUrl: s.dataset.lumiApi || undefined,
-        cssUrl: s.dataset.lumiCss || undefined,
-        accentColor: s.dataset.lumiColor || undefined,
-        brandName: s.dataset.lumiBrand || undefined,
-        triggerLabel: s.dataset.lumiLabel || undefined,
-        logoText: s.dataset.lumiLogo || undefined,
-        currency: s.dataset.lumiCurrency || undefined,
-      });
+    close() {
+      if (this._inst && !this._inst._destroyed) {
+        this._inst.closeAll();
+      }
+    },
+    destroy() {
+      if (this._inst) {
+        this._inst.destroy();
+        this._inst = null;
+      }
+    },
+    getInstance() {
+      return this._inst;
     }
   };
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
-  else init();
+
+  // Auto-init
+  const init = () => {
+    const s = document.querySelector("script[data-lumi-auto]");
+    if (s && !global.LumiSearch._inst) {
+      try {
+        global.LumiSearch.init({
+          apiUrl: s.dataset.lumiApi || undefined,
+          cssUrl: s.dataset.lumiCss || undefined,
+          accentColor: s.dataset.lumiColor || undefined,
+          brandName: s.dataset.lumiBrand || undefined,
+          triggerLabel: s.dataset.lumiLabel || undefined,
+          logoText: s.dataset.lumiLogo || undefined,
+          currency: s.dataset.lumiCurrency || undefined,
+        });
+      } catch (e) {
+        console.warn('LumiSearch: Auto-init failed:', e);
+      }
+    }
+  };
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    Promise.resolve().then(init);
+  }
 
 })(window);
