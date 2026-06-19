@@ -1,5 +1,6 @@
 /**
- * LumiSearch AI Plugin v3.2 (FIXED: No debounce, Enter works, Go to Chat shows question)
+ * LumiSearch AI Plugin v3.4 (FIXED: button class collision on info-message buttons,
+ * duplicate bot message after redirection, no debounce, Enter works)
  * Drop-in embeddable AI search + chat widget. Zero dependencies.
  */
 
@@ -17,8 +18,8 @@
     placeholder: "Search products, ask questions…",
     logoText: "✦",
     currency: "₹",
-    searchDebounceMs: 0,        // CHANGED: Set to 0 to disable debounce
-    chatDebounceMs: 0,          // CHANGED: Set to 0 to disable debounce
+    searchDebounceMs: 0,        // Set to 0 to disable debounce
+    chatDebounceMs: 0,          // Set to 0 to disable debounce
     maxHistoryLength: 50,
     redirectDelay: 150,
     messageExpiryMs: 30000,
@@ -220,7 +221,6 @@
       this._isInitialized = false;
       this._messageShown = false;
 
-      // REMOVED: No debounced functions needed
       this._mount();
       this._restoreState();
       this._isInitialized = true;
@@ -277,6 +277,11 @@
     _showRestoredChat() {
       if (this._destroyed) return;
 
+      // FIXED: the pending message is the ONLY source for "new" bot message
+      // after a redirect. It is saved to history here, exactly once, and
+      // rendered here, exactly once. The originating page (before redirect)
+      // no longer saves/renders it itself — see _handleRedirection and
+      // _handleInfoToChatWithRedirect below.
       if (this._pendingMessage) {
         this._saveToHistory('bot', this._pendingMessage);
         this.openChat(this._pendingMessage);
@@ -403,7 +408,6 @@
       const closeBtn = root.querySelector(".__lumi-hero-close");
       closeBtn.addEventListener("click", () => this.closeAll(), { passive: true });
 
-      // FIXED: Direct input handler without debounce
       const handleInput = (e) => {
         if (this._destroyed) return;
         this._clearHtmlFromInput(this.$input);
@@ -425,13 +429,12 @@
         }
       }, { passive: true });
 
-      // FIXED: Enter key calls _search directly, no debounce
       this.$input.addEventListener("keydown", e => {
         if (e.key === "Enter") {
           e.preventDefault();
           const value = this.$input.value.trim();
           if (!value) return;
-          this._search(value);  // Direct call - no debounce
+          this._search(value);
         }
       }, { passive: false });
 
@@ -439,7 +442,7 @@
         const chip = e.target.closest(".__lumi-hint-chip");
         if (chip && chip.dataset.q) {
           this.$input.value = chip.dataset.q;
-          this._search(chip.dataset.q);  // Direct call - no debounce
+          this._search(chip.dataset.q);
         }
       }, { passive: true });
 
@@ -538,13 +541,18 @@
       `;
     }
 
+    // FIXED: "Go to Chat" and "View More" no longer share the same class.
+    // Previously both buttons used "__lumi-info-redirect-btn", which meant
+    // querySelector('.__lumi-info-redirect-btn') always grabbed the FIRST
+    // one ("Go to Chat") and the second button ("View More", with the actual
+    // data-link) never got its click listener attached.
     _htmlInfoMessage(message, redirectionLink) {
       const truncatedMsg = this._truncateText(message, 150);
       const isTruncated = message.length > 150;
 
       let buttonsHtml = `
-        <button class="__lumi-info-chat-btn" data-msg="${this._escapeHtml(message)}">
-         
+        <button class="__lumi-info-btn __lumi-info-chat-btn" data-msg="${this._escapeHtml(message)}">
+          <span class="__lumi-btn-icon">${I.chat}</span>
           <span class="__lumi-btn-text">Go to Chat</span>
           <span class="__lumi-btn-arrow">${I.arrow}</span>
         </button>
@@ -553,11 +561,10 @@
       if (redirectionLink) {
         buttonsHtml += `
           <button
-            class="__lumi-info-redirect-btn"
+            class="__lumi-info-btn __lumi-info-redirect-btn"
             data-link="${this._escapeHtml(redirectionLink)}"
             data-msg="${this._escapeHtml(message)}"
           >
-           
             <span class="__lumi-btn-text">View More</span>
             <span class="__lumi-btn-arrow">${I.arrow}</span>
           </button>
@@ -840,6 +847,13 @@
       this.$bd.classList.remove("lumi-on");
     }
 
+    // FIXED: this used to ALSO call openChat(data.message) + _saveToHistory('bot', ...)
+    // on THIS page before navigating away, in addition to stashing the message in
+    // REDIRECT_MESSAGE. That meant the message got saved into chatHistory once here,
+    // and then again on the destination page when REDIRECT_MESSAGE was restored —
+    // producing a duplicate bubble. Now this function ONLY stashes the pending
+    // message; the destination page (_showRestoredChat) is the single place that
+    // saves it to history and renders it.
     _handleRedirection(data) {
       if (!data.redirection_link || typeof data.redirection_link !== 'string') {
         return false;
@@ -853,22 +867,14 @@
           console.log('LumiSearch: Storing message for redirect:', data.message);
           sessionStorage.setItem(STORAGE_KEYS.REDIRECT_MESSAGE, data.message);
           sessionStorage.setItem(STORAGE_KEYS.REDIRECT_TIMESTAMP, Date.now().toString());
-
-          if (this.chatHistory.length > 0) {
-            saveChatHistory(this.chatHistory);
-            saveChatState(true);
-          }
         }
+
+        // Persist current history as-is (do not add the new bot message here).
+        saveChatHistory(this.chatHistory);
+        saveChatState(true);
 
         this.closeSearch();
         this.closeAll();
-
-        if (data.message) {
-          this.openChat(data.message);
-          this._saveToHistory('bot', data.message);
-        } else {
-          this.openChat();
-        }
 
         setTimeout(() => {
           if (!this._destroyed) {
@@ -960,19 +966,19 @@
           return;
         }
 
-        // FIXED: Handle info intent with proper chat flow
         if (data.intent === "info") {
           this._busy = false;
           this._setBody(this._htmlInfoMessage(data.message || "No message provided", data.redirection_link));
 
           setTimeout(() => {
-            // FIXED: Chat button handler - saves user query then opens chat
+            // FIXED: each button now has its own unique class, so each
+            // querySelector grabs the correct element.
             const chatBtn = this.$body.querySelector('.__lumi-info-chat-btn');
             if (chatBtn) {
               chatBtn.addEventListener('click', () => {
                 const msg = chatBtn.dataset.msg || '';
-                // FIXED: Save the user's original search query to history first
                 this._saveToHistory('user', query);
+                this._userMsg(this._escapeHtml(query));
                 this._handleInfoToChat(msg, query);
               }, { passive: true });
             }
@@ -982,8 +988,8 @@
               redirectBtn.addEventListener('click', () => {
                 const link = redirectBtn.dataset.link || '';
                 const msg = redirectBtn.dataset.msg || '';
-                // FIXED: Save the user's original search query to history first
                 this._saveToHistory('user', query);
+                this._userMsg(this._escapeHtml(query));
                 this._handleInfoToChatWithRedirect(msg, query, link);
               }, { passive: true });
             }
@@ -1006,6 +1012,7 @@
           this._setBody(this._htmlHint());
           this.closeSearch();
           this._saveToHistory('user', value);
+          this._userMsg(this._escapeHtml(value));
           this.openChat(data.message);
           this._saveToHistory('bot', data.message);
           return;
@@ -1028,15 +1035,13 @@
       }
     }
 
-    // FIXED: Handle Info to Chat transition - saves user query first
+    // Handle Info to Chat transition (no redirect — stays on this page).
+    // The user's query bubble is already rendered by the click handler
+    // (via _userMsg) before this function runs, so it appears above the bot reply.
     _handleInfoToChat(message, userQuery) {
       if (this._destroyed) return;
 
       this.closeSearch();
-
-      // FIXED: Ensure user query is already saved before opening chat
-      // (saved in the click handler before calling this)
-
       this.openChat(message);
 
       if (message) {
@@ -1044,27 +1049,24 @@
       }
     }
 
-    // FIXED: Handle Info to Chat with Redirect - saves user query first
+    // FIXED: Handle Info to Chat with Redirect. This page is about to navigate
+    // away, so it must NOT save/render the bot message itself — only stash it
+    // as the pending REDIRECT_MESSAGE. The destination page's _showRestoredChat
+    // is the single place that saves it to history and renders it, avoiding
+    // the duplicate-message bug.
     _handleInfoToChatWithRedirect(message, userQuery, redirectLink) {
       if (this._destroyed) return;
 
       this.closeSearch();
 
-      // FIXED: Ensure user query is already saved before opening chat
-      // (saved in the click handler before calling this)
-
-      this.openChat(message);
-
-      if (message) {
-        this._saveToHistory('bot', message);
-      }
-
       if (message) {
         sessionStorage.setItem(STORAGE_KEYS.REDIRECT_MESSAGE, message);
         sessionStorage.setItem(STORAGE_KEYS.REDIRECT_TIMESTAMP, Date.now().toString());
-        saveChatHistory(this.chatHistory);
-        saveChatState(true);
       }
+
+      // Persist current history as-is (user query already saved by caller).
+      saveChatHistory(this.chatHistory);
+      saveChatState(true);
 
       if (redirectLink) {
         setTimeout(() => {
