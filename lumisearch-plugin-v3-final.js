@@ -1,16 +1,6 @@
 /**
- * LumiSearch AI Plugin v3.0 (CSP-safe, Production Ready)
+ * LumiSearch AI Plugin v3.2 (FIXED: No debounce, Enter works, Go to Chat shows question)
  * Drop-in embeddable AI search + chat widget. Zero dependencies.
- * 
- * FEATURES:
- * - CSP-safe: all styles loaded via external CSS
- * - Persistent chat history across redirects using sessionStorage
- * - Chat state (open/closed) persists across redirects
- * - Multiple redirects maintain full chat history
- * - Proper debouncing with cancelation
- * - Production-ready error handling
- * - Memory leak prevention
- * - Performance optimized
  */
 
 (function (global) {
@@ -18,7 +8,7 @@
 
   const DEFAULTS = {
     apiUrl: "https://designing-sequel-stingray.ngrok-free.dev/query",
-    cssUrl: "assets/lumi-search.css",   // <-- Angular dev: put lumi-search.css in src/assets/
+    cssUrl: "assets/lumi-search.css",
     sessionId: "lumi_" + Math.random().toString(36).slice(2, 9),
     strategy: "hybrid",
     accentColor: "#1a56db",
@@ -27,8 +17,8 @@
     placeholder: "Search products, ask questions…",
     logoText: "✦",
     currency: "₹",
-    searchDebounceMs: 1000,
-    chatDebounceMs: 1000,
+    searchDebounceMs: 0,        // CHANGED: Set to 0 to disable debounce
+    chatDebounceMs: 0,          // CHANGED: Set to 0 to disable debounce
     maxHistoryLength: 50,
     redirectDelay: 150,
     messageExpiryMs: 30000,
@@ -42,113 +32,6 @@
     CHAT_OPEN: '__lumi_chat_open',
     SESSION_ID: '__lumi_session_id',
   };
-
-  // Utility: Debounce with leading/trailing options (CSP-safe)
-  function debounce(func, wait, options = {}) {
-    let timeoutId = null;
-    let lastArgs = null;
-    let lastThis = null;
-    let result = null;
-    let lastCallTime = 0;
-    let lastInvokeTime = 0;
-    const maxWait = options.maxWait || 0;
-    const leading = options.leading || false;
-    const trailing = options.trailing !== false;
-
-    function shouldInvoke(time) {
-      const timeSinceLastCall = time - lastCallTime;
-      const timeSinceLastInvoke = time - lastInvokeTime;
-      return (
-        lastCallTime === 0 ||
-        timeSinceLastCall >= wait ||
-        (maxWait > 0 && timeSinceLastInvoke >= maxWait)
-      );
-    }
-
-    function invokeFunc(time) {
-      lastInvokeTime = time;
-      const args = lastArgs;
-      const context = lastThis;
-      lastArgs = null;
-      lastThis = null;
-      result = func.apply(context, args);
-      return result;
-    }
-
-    function timerExpired() {
-      const time = Date.now();
-      if (shouldInvoke(time)) {
-        return trailingEdge(time);
-      }
-      timeoutId = setTimeout(timerExpired, remainingWait(time));
-      return null;
-    }
-
-    function remainingWait(time) {
-      const timeSinceLastCall = time - lastCallTime;
-      const timeSinceLastInvoke = time - lastInvokeTime;
-      const timeWaiting = wait - timeSinceLastCall;
-      return maxWait > 0
-        ? Math.min(timeWaiting, maxWait - timeSinceLastInvoke)
-        : timeWaiting;
-    }
-
-    function leadingEdge(time) {
-      lastInvokeTime = time;
-      timeoutId = setTimeout(timerExpired, wait);
-      return leading ? invokeFunc(time) : result;
-    }
-
-    function trailingEdge(time) {
-      timeoutId = null;
-      if (trailing && lastArgs) {
-        return invokeFunc(time);
-      }
-      lastArgs = null;
-      lastThis = null;
-      return result;
-    }
-
-    function debounced(...args) {
-      const time = Date.now();
-      const isInvoking = shouldInvoke(time);
-      lastArgs = args;
-      lastThis = this;
-      lastCallTime = time;
-
-      if (isInvoking) {
-        if (timeoutId === null) {
-          return leadingEdge(time);
-        }
-        if (maxWait > 0) {
-          timeoutId = setTimeout(timerExpired, wait);
-          return invokeFunc(time);
-        }
-        return result;
-      }
-      if (timeoutId === null) {
-        timeoutId = setTimeout(timerExpired, wait);
-      }
-      return result;
-    }
-
-    debounced.cancel = function () {
-      if (timeoutId !== null) {
-        clearTimeout(timeoutId);
-      }
-      lastArgs = null;
-      lastThis = null;
-      lastCallTime = 0;
-      lastInvokeTime = 0;
-      timeoutId = null;
-    };
-
-    debounced.flush = function () {
-      return timeoutId === null ? result : trailingEdge(Date.now());
-    };
-
-    return debounced;
-  }
 
   // Utility: Throttle for rate limiting (CSP-safe)
   function throttle(func, limit) {
@@ -192,7 +75,6 @@
     link.href = cfg.cssUrl;
     document.head.appendChild(link);
 
-    // Inter font from Google (CSP whitelist required)
     if (!document.getElementById("__lumi-font")) {
       const fontLink = document.createElement("link");
       fontLink.id = "__lumi-font";
@@ -212,6 +94,8 @@
     bot: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><circle cx="12" cy="5" r="2"/><line x1="12" y1="7" x2="12" y2="11"/><line x1="8" y1="15" x2="8" y2="17"/><line x1="16" y1="15" x2="16" y2="17"/></svg>`,
     warn: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
     tag: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>`,
+    chat: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
+    external: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`,
   };
 
   function md(t) {
@@ -334,20 +218,9 @@
       this._pendingMessage = null;
       this._destroyed = false;
       this._isInitialized = false;
+      this._messageShown = false;
 
-      // Create debounced functions with proper configuration
-      this._debouncedSearch = debounce(
-        (value) => this._search(value),
-        this.cfg.searchDebounceMs,
-        { leading: false, trailing: true }
-      );
-
-      this._debouncedChat = debounce(
-        (value) => this._callApi(value),
-        this.cfg.chatDebounceMs,
-        { leading: false, trailing: true }
-      );
-
+      // REMOVED: No debounced functions needed
       this._mount();
       this._restoreState();
       this._isInitialized = true;
@@ -374,21 +247,18 @@
 
     _restoreState() {
       try {
-        // Restore chat history
         const history = getChatHistory();
         if (history.length > 0) {
           this.chatHistory = history;
           this._restoredHistory = true;
         }
 
-        // Check for pending redirect message
         const pendingMsg = getRedirectMessage();
         if (pendingMsg) {
+          console.log('LumiSearch: Found pending redirect message:', pendingMsg);
           this._pendingMessage = pendingMsg;
-          clearRedirectData();
         }
 
-        // Restore chat open state
         const wasOpen = getChatState();
         if (wasOpen || this._pendingMessage) {
           if (typeof requestAnimationFrame !== 'undefined') {
@@ -396,7 +266,7 @@
               this._showRestoredChat();
             });
           } else {
-            setTimeout(() => this._showRestoredChat(), 50);
+            setTimeout(() => this._showRestoredChat(), 100);
           }
         }
       } catch (e) {
@@ -405,25 +275,24 @@
     }
 
     _showRestoredChat() {
-  if (this._destroyed) return;
+      if (this._destroyed) return;
 
-  if (this._pendingMessage) {
-    // Save pending message to history so _renderChatHistory includes it
-    this._saveToHistory('bot', this._pendingMessage);
-    this.openChat(this._pendingMessage);
-    this._pendingMessage = null;
-  } else {
-    this.openChat();
-  }
-
-  if (this._restoredHistory && this.chatHistory.length > 0) {
-    setTimeout(() => {
-      if (!this._destroyed) {
-        this._renderChatHistory();
+      if (this._pendingMessage) {
+        this._saveToHistory('bot', this._pendingMessage);
+        this.openChat(this._pendingMessage);
+        this._pendingMessage = null;
+      } else {
+        this.openChat();
       }
-    }, 50);
-  }
-}
+
+      if (this._restoredHistory && this.chatHistory.length > 0) {
+        setTimeout(() => {
+          if (!this._destroyed) {
+            this._renderChatHistory();
+          }
+        }, 50);
+      }
+    }
 
     _renderChatHistory() {
       if (!this.$msgs || this._destroyed) return;
@@ -534,22 +403,19 @@
       const closeBtn = root.querySelector(".__lumi-hero-close");
       closeBtn.addEventListener("click", () => this.closeAll(), { passive: true });
 
-      // Throttled input handler
-      const handleInput = throttle((e) => {
+      // FIXED: Direct input handler without debounce
+      const handleInput = (e) => {
         if (this._destroyed) return;
         this._clearHtmlFromInput(this.$input);
         const value = this.$input.value.trim();
-        this._debouncedSearch.cancel();
 
         if (!value) {
           this._lastSearchQuery = "";
           this._setBody(this._htmlHint());
           return;
         }
-
         this._lastSearchQuery = value;
-        this._debouncedSearch(value);
-      }, 100);
+      };
 
       this.$input.addEventListener("input", handleInput, { passive: true });
 
@@ -559,13 +425,13 @@
         }
       }, { passive: true });
 
+      // FIXED: Enter key calls _search directly, no debounce
       this.$input.addEventListener("keydown", e => {
         if (e.key === "Enter") {
           e.preventDefault();
           const value = this.$input.value.trim();
           if (!value) return;
-          this._debouncedSearch.cancel();
-          this._search(value);
+          this._search(value);  // Direct call - no debounce
         }
       }, { passive: false });
 
@@ -573,7 +439,7 @@
         const chip = e.target.closest(".__lumi-hint-chip");
         if (chip && chip.dataset.q) {
           this.$input.value = chip.dataset.q;
-          this._search(chip.dataset.q);
+          this._search(chip.dataset.q);  // Direct call - no debounce
         }
       }, { passive: true });
 
@@ -618,7 +484,6 @@
 
       this.$sendBtn.addEventListener("click", () => this._sendMsg(), { passive: true });
 
-      // Throttled textarea handler
       const handleTextareaInput = throttle(() => {
         if (this._destroyed) return;
         this._clearHtmlFromInput(this.$ta);
@@ -644,7 +509,6 @@
         { label: "Home inverters", q: "I want to buy home inverters" },
         { label: "Solar products", q: "Show me solar panels" },
         { label: "Battery backup", q: "I need battery backup solutions" },
-       
       ];
       return `
         <div class="__lumi-hint">
@@ -674,6 +538,58 @@
       `;
     }
 
+    _htmlInfoMessage(message, redirectionLink) {
+      const truncatedMsg = this._truncateText(message, 150);
+      const isTruncated = message.length > 150;
+
+      let buttonsHtml = `
+        <button class="__lumi-info-chat-btn" data-msg="${this._escapeHtml(message)}">
+         
+          <span class="__lumi-btn-text">Go to Chat</span>
+          <span class="__lumi-btn-arrow">${I.arrow}</span>
+        </button>
+      `;
+
+      if (redirectionLink) {
+        buttonsHtml += `
+          <button
+            class="__lumi-info-redirect-btn"
+            data-link="${this._escapeHtml(redirectionLink)}"
+            data-msg="${this._escapeHtml(message)}"
+          >
+           
+            <span class="__lumi-btn-text">View More</span>
+            <span class="__lumi-btn-arrow">${I.arrow}</span>
+          </button>
+        `;
+      }
+
+      return `
+        <div class="__lumi-info-box">
+          <div class="__lumi-info-icon">${I.bot}</div>
+          <div class="__lumi-info-content">
+            <div class="__lumi-info-message ${isTruncated ? 'truncated' : ''}">
+              ${this._escapeHtml(truncatedMsg)}
+              ${isTruncated ? '<span class="__lumi-info-ellipsis">...</span>' : ''}
+            </div>
+            <div class="__lumi-info-buttons">
+              ${buttonsHtml}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    _truncateText(text, maxLength) {
+      if (!text) return '';
+      if (text.length <= maxLength) return text;
+      const lastSpace = text.lastIndexOf(' ', maxLength);
+      if (lastSpace > 0) {
+        return text.substring(0, lastSpace);
+      }
+      return text.substring(0, maxLength);
+    }
+
     _htmlProducts(data, originalQuery, forChat = false) {
       const cards = data.products.map((p, i) => {
         const imgUrl = cleanImageUrl(p.image_url);
@@ -683,84 +599,84 @@
 
         if (forChat) {
           return `
-        <a class="__lumi-chat-product-card"
-           href="${cleanLink}"
-           rel="noopener"
-           style="animation-delay:${i * 45}ms"
-        >
-          <div class="__lumi-chat-product-thumb">
-            ${imgUrl
+            <a class="__lumi-chat-product-card"
+               href="${cleanLink}"
+               rel="noopener"
+               style="animation-delay:${i * 45}ms"
+            >
+              <div class="__lumi-chat-product-thumb">
+                ${imgUrl
               ? `<img src="${imgUrl}" alt="${this._escapeHtml(p.product_name)}" loading="lazy" onerror="this.style.display='none';this.parentElement.querySelector('.fallback-icon')?.style.removeProperty('display');">`
               : `<span class="__lumi-card-thumb-icon">${I.product}</span>`
             }
-            <span class="__lumi-card-thumb-icon fallback-icon" style="display:none;">${I.product}</span>
-          </div>
-          <div class="__lumi-chat-product-body">
-            <div class="__lumi-chat-product-name">${this._escapeHtml(p.product_name)}</div>
-            <div class="__lumi-chat-product-desc">${this._escapeHtml(cleanDesc)}</div>
-            ${p.price ? `<div class="__lumi-chat-product-price">${formatPrice(p.price, this.cfg.currency)}</div>` : ""}
-            <div class="__lumi-chat-product-footer">
-              <span class="__lumi-chat-product-cta">${I.arrow} View</span>
-              <span class="__lumi-chat-product-badge">In Stock</span>
-            </div>
-          </div>
-        </a>
-      `;
+                <span class="__lumi-card-thumb-icon fallback-icon" style="display:none;">${I.product}</span>
+              </div>
+              <div class="__lumi-chat-product-body">
+                <div class="__lumi-chat-product-name">${this._escapeHtml(p.product_name)}</div>
+                <div class="__lumi-chat-product-desc">${this._escapeHtml(cleanDesc)}</div>
+                ${p.price ? `<div class="__lumi-chat-product-price">${formatPrice(p.price, this.cfg.currency)}</div>` : ""}
+                <div class="__lumi-chat-product-footer">
+                  <span class="__lumi-chat-product-cta">${I.arrow} View</span>
+                  <span class="__lumi-chat-product-badge">In Stock</span>
+                </div>
+              </div>
+            </a>
+          `;
         }
 
         return `
-      <a class="__lumi-card"
-         href="${cleanLink}"
-         rel="noopener"
-         style="animation-delay:${i * 45}ms"
-      >
-        <div class="__lumi-card-thumb">
-          ${imgUrl
+          <a class="__lumi-card"
+             href="${cleanLink}"
+             rel="noopener"
+             style="animation-delay:${i * 45}ms"
+          >
+            <div class="__lumi-card-thumb">
+              ${imgUrl
             ? `<img src="${imgUrl}" alt="${this._escapeHtml(p.product_name)}" loading="lazy" onerror="this.style.display='none';this.parentElement.querySelector('.fallback-icon')?.style.removeProperty('display');">`
             : `<span class="__lumi-card-thumb-icon">${I.product}</span>`
           }
-          <span class="__lumi-card-thumb-icon fallback-icon" style="display:none;">${I.product}</span>
-        </div>
-        <div class="__lumi-card-body">
-          <div class="__lumi-card-name">${this._escapeHtml(p.product_name)}</div>
-          <div class="__lumi-card-desc">${this._escapeHtml(cleanDesc)}</div>
-          <div class="__lumi-card-price-row">
-            ${p.price ? `<span class="__lumi-card-price">${formatPrice(p.price, this.cfg.currency)}</span>` : ""}
-            ${p.mrp && p.mrp > p.price ? `<span class="__lumi-card-mrp">${formatPrice(p.mrp, this.cfg.currency)}</span>` : ""}
-            ${discount ? `<span class="__lumi-card-discount">${discount}% off</span>` : ""}
-          </div>
-          ${p.sku ? `<div class="__lumi-card-sku">SKU: ${this._escapeHtml(p.sku)}</div>` : ""}
-          <div class="__lumi-card-footer">
-            <span class="__lumi-card-cta">${I.arrow} View Product</span>
-            <span class="__lumi-card-badge">In Stock</span>
-          </div>
-        </div>
-      </a>
-    `;
+              <span class="__lumi-card-thumb-icon fallback-icon" style="display:none;">${I.product}</span>
+            </div>
+            <div class="__lumi-card-body">
+              <div class="__lumi-card-name">${this._escapeHtml(p.product_name)}</div>
+              <div class="__lumi-card-desc">${this._escapeHtml(cleanDesc)}</div>
+              <div class="__lumi-card-price-row">
+                ${p.price ? `<span class="__lumi-card-price">${formatPrice(p.price, this.cfg.currency)}</span>` : ""}
+                ${p.mrp && p.mrp > p.price ? `<span class="__lumi-card-mrp">${formatPrice(p.mrp, this.cfg.currency)}</span>` : ""}
+                ${discount ? `<span class="__lumi-card-discount">${discount}% off</span>` : ""}
+              </div>
+              ${p.sku ? `<div class="__lumi-card-sku">SKU: ${this._escapeHtml(p.sku)}</div>` : ""}
+              <div class="__lumi-card-footer">
+                <span class="__lumi-card-cta">${I.arrow} View Product</span>
+                <span class="__lumi-card-badge">In Stock</span>
+              </div>
+            </div>
+          </a>
+        `;
       }).join("");
 
       if (forChat) {
         return `
-      <div class="__lumi-section-label">
-        <span class="__lumi-section-label-text">Products found</span>
-        <span class="__lumi-section-count">${data.products.length} results</span>
-      </div>
-      <div class="__lumi-chat-products-grid">${cards}</div>
-    `;
+          <div class="__lumi-section-label">
+            <span class="__lumi-section-label-text">Products found</span>
+            <span class="__lumi-section-count">${data.products.length} results</span>
+          </div>
+          <div class="__lumi-chat-products-grid">${cards}</div>
+        `;
       }
 
       return `
-    <div class="__lumi-section-label">
-      <span class="__lumi-section-label-text">Products found</span>
-      <span class="__lumi-section-count">${data.products.length} results</span>
-    </div>
-    <div class="__lumi-cards">${cards}</div>
-    <button class="__lumi-deepdive" data-q="${this._escapeHtml(originalQuery)}">
-      ${I.bolt}
-      Deep Dive with AI
-      <span class="__lumi-deepdive-sub">— Ask follow-up questions</span>
-    </button>
-  `;
+        <div class="__lumi-section-label">
+          <span class="__lumi-section-label-text">Products found</span>
+          <span class="__lumi-section-count">${data.products.length} results</span>
+        </div>
+        <div class="__lumi-cards">${cards}</div>
+        <button class="__lumi-deepdive" data-q="${this._escapeHtml(originalQuery)}">
+          ${I.bolt}
+          Deep Dive with AI
+          <span class="__lumi-deepdive-sub">— Ask follow-up questions</span>
+        </button>
+      `;
     }
 
     _sanitizeInput(raw) {
@@ -818,7 +734,7 @@
         }
       } catch (e) {
         if (/<[^>]*>/g.test(rawValue)) {
-          const textOnly = rawValue.replace(/<[^>]*>/g, '');
+          const textOnly = rawValue.replace(/<<[^>]*>/g, '');
           inputElement.value = textOnly;
           this._showHtmlWarning();
           return textOnly;
@@ -886,7 +802,6 @@
         this._setBody(this._htmlHint());
       }
 
-      this._debouncedSearch.cancel();
       this._busy = false;
     }
 
@@ -897,15 +812,17 @@
       saveChatState(true);
 
       if (botMsg) {
+        console.log('LumiSearch: Adding bot message to chat:', botMsg);
         this._botMsg(botMsg);
       }
 
-      if (this._restoredHistory && this.chatHistory.length > 0) {
-        this._renderChatHistory();
-        this._restoredHistory = false;
-      }
-
-      this._scrollMsgs();
+      setTimeout(() => {
+        if (this._restoredHistory && this.chatHistory.length > 0) {
+          this._renderChatHistory();
+          this._restoredHistory = false;
+        }
+        this._scrollMsgs();
+      }, 50);
     }
 
     closeChat() {
@@ -923,7 +840,6 @@
       this.$bd.classList.remove("lumi-on");
     }
 
-    // ─── REDIRECTION HANDLING WITH PERSISTENCE ───
     _handleRedirection(data) {
       if (!data.redirection_link || typeof data.redirection_link !== 'string') {
         return false;
@@ -933,26 +849,33 @@
       if (!link) return false;
 
       try {
-        // Store message for after redirect
         if (data.message) {
+          console.log('LumiSearch: Storing message for redirect:', data.message);
           sessionStorage.setItem(STORAGE_KEYS.REDIRECT_MESSAGE, data.message);
           sessionStorage.setItem(STORAGE_KEYS.REDIRECT_TIMESTAMP, Date.now().toString());
 
-          // Save chat history before redirect
           if (this.chatHistory.length > 0) {
             saveChatHistory(this.chatHistory);
             saveChatState(true);
           }
         }
 
+        this.closeSearch();
         this.closeAll();
 
-        // Delay redirect to ensure UI closes
+        if (data.message) {
+          this.openChat(data.message);
+          this._saveToHistory('bot', data.message);
+        } else {
+          this.openChat();
+        }
+
         setTimeout(() => {
           if (!this._destroyed) {
             window.location.href = link;
           }
         }, this.cfg.redirectDelay || 150);
+
         return true;
       } catch (e) {
         console.warn('LumiSearch: Redirect error:', e);
@@ -1032,9 +955,39 @@
           return;
         }
 
-        // ─── CHECK FOR REDIRECTION ───
-        if (this._handleRedirection(data)) {
+        if (data.intent !== "info" && this._handleRedirection(data)) {
           this._busy = false;
+          return;
+        }
+
+        // FIXED: Handle info intent with proper chat flow
+        if (data.intent === "info") {
+          this._busy = false;
+          this._setBody(this._htmlInfoMessage(data.message || "No message provided", data.redirection_link));
+
+          setTimeout(() => {
+            // FIXED: Chat button handler - saves user query then opens chat
+            const chatBtn = this.$body.querySelector('.__lumi-info-chat-btn');
+            if (chatBtn) {
+              chatBtn.addEventListener('click', () => {
+                const msg = chatBtn.dataset.msg || '';
+                // FIXED: Save the user's original search query to history first
+                this._saveToHistory('user', query);
+                this._handleInfoToChat(msg, query);
+              }, { passive: true });
+            }
+
+            const redirectBtn = this.$body.querySelector('.__lumi-info-redirect-btn');
+            if (redirectBtn) {
+              redirectBtn.addEventListener('click', () => {
+                const link = redirectBtn.dataset.link || '';
+                const msg = redirectBtn.dataset.msg || '';
+                // FIXED: Save the user's original search query to history first
+                this._saveToHistory('user', query);
+                this._handleInfoToChatWithRedirect(msg, query, link);
+              }, { passive: true });
+            }
+          }, 50);
           return;
         }
 
@@ -1044,7 +997,7 @@
           if (btn) {
             btn.addEventListener("click", () => this._deepDive(btn.dataset.q), { passive: true });
           }
-        } else if (data.intent === "info" || data.message) {
+        } else if (data.message) {
           this._busy = false;
           if (this.$input) {
             this.$input.value = "";
@@ -1075,6 +1028,53 @@
       }
     }
 
+    // FIXED: Handle Info to Chat transition - saves user query first
+    _handleInfoToChat(message, userQuery) {
+      if (this._destroyed) return;
+
+      this.closeSearch();
+
+      // FIXED: Ensure user query is already saved before opening chat
+      // (saved in the click handler before calling this)
+
+      this.openChat(message);
+
+      if (message) {
+        this._saveToHistory('bot', message);
+      }
+    }
+
+    // FIXED: Handle Info to Chat with Redirect - saves user query first
+    _handleInfoToChatWithRedirect(message, userQuery, redirectLink) {
+      if (this._destroyed) return;
+
+      this.closeSearch();
+
+      // FIXED: Ensure user query is already saved before opening chat
+      // (saved in the click handler before calling this)
+
+      this.openChat(message);
+
+      if (message) {
+        this._saveToHistory('bot', message);
+      }
+
+      if (message) {
+        sessionStorage.setItem(STORAGE_KEYS.REDIRECT_MESSAGE, message);
+        sessionStorage.setItem(STORAGE_KEYS.REDIRECT_TIMESTAMP, Date.now().toString());
+        saveChatHistory(this.chatHistory);
+        saveChatState(true);
+      }
+
+      if (redirectLink) {
+        setTimeout(() => {
+          if (!this._destroyed) {
+            window.location.href = redirectLink;
+          }
+        }, this.cfg.redirectDelay || 150);
+      }
+    }
+
     _setBody(html) {
       if (this.$body && !this._destroyed) {
         this.$body.innerHTML = `<div class="__lumi-body-inner">${html}</div>`;
@@ -1084,8 +1084,7 @@
     _deepDive(query) {
       if (this._destroyed) return;
 
-      const q = `Tell me more about: ${query}`;
-      this._debouncedSearch.cancel();
+      const q = `${query}`;
       this._busy = false;
 
       if (this.$input) {
@@ -1155,14 +1154,17 @@
         if (!res.ok) throw new Error(`Server error ${res.status}`);
         const data = await res.json();
 
-        // ─── CHECK FOR REDIRECTION IN CHAT ───
         if (this._handleRedirection(data)) {
           this._busy = false;
           this.$sendBtn.disabled = false;
           return;
         }
 
-        if (data.intent === "buy" && data.products?.length) {
+        if (data.intent === "info") {
+          const msg = data.message || "No message provided";
+          this._botMsg(msg);
+          this._saveToHistory('bot', msg);
+        } else if (data.intent === "buy" && data.products?.length) {
           const msg = data.message || "Here are some products that match your request:";
           this._botMsg(msg);
           this._saveToHistory('bot', msg);
@@ -1286,9 +1288,6 @@
       if (this._destroyed) return;
       this._destroyed = true;
       this._isInitialized = false;
-
-      this._debouncedSearch.cancel();
-      this._debouncedChat.cancel();
 
       document.removeEventListener("keydown", this._handleKeydown.bind(this));
 
