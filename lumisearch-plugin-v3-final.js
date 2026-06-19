@@ -552,7 +552,7 @@
 
       let buttonsHtml = `
         <button class="__lumi-info-btn __lumi-info-chat-btn" data-msg="${this._escapeHtml(message)}">
-          <span class="__lumi-btn-icon">${I.chat}</span>
+         
           <span class="__lumi-btn-text">Go to Chat</span>
           <span class="__lumi-btn-arrow">${I.arrow}</span>
         </button>
