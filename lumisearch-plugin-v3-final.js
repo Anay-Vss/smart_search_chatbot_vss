@@ -400,6 +400,13 @@
         <div class="__lumi-body">
           <div class="__lumi-body-inner">${this._htmlHint()}</div>
         </div>
+        <div class="__lumi-footer">
+          <button class="__lumi-deepdive" id="__lumi-deepdive-btn" style="display:none;">
+            ${I.bolt}
+            Deep Dive with AI
+            <span class="__lumi-deepdive-sub">— Ask follow-up questions</span>
+          </button>
+        </div>
       `;
 
       this.$input = root.querySelector(".__lumi-searchbar-input");
@@ -416,6 +423,8 @@
         if (!value) {
           this._lastSearchQuery = "";
           this._setBody(this._htmlHint());
+          const footerBtn = this.$root.querySelector("#__lumi-deepdive-btn");
+          if (footerBtn) footerBtn.style.display = "none";
           return;
         }
         this._lastSearchQuery = value;
@@ -678,11 +687,6 @@
           <span class="__lumi-section-count">${data.products.length} results</span>
         </div>
         <div class="__lumi-cards">${cards}</div>
-        <button class="__lumi-deepdive" data-q="${this._escapeHtml(originalQuery)}">
-          ${I.bolt}
-          Deep Dive with AI
-          <span class="__lumi-deepdive-sub">— Ask follow-up questions</span>
-        </button>
       `;
     }
 
@@ -809,6 +813,9 @@
         this._setBody(this._htmlHint());
       }
 
+      const footerBtn = this.$root.querySelector("#__lumi-deepdive-btn");
+      if (footerBtn) footerBtn.style.display = "none";
+
       this._busy = false;
     }
 
@@ -923,6 +930,8 @@
 
       this._busy = true;
       this._setBody(this._htmlLoader());
+      const footerBtn = this.$root.querySelector("#__lumi-deepdive-btn");
+      if (footerBtn) footerBtn.style.display = "none";
 
       const requestId = ++this._searchRequestId;
 
@@ -969,6 +978,8 @@
         if (data.intent === "info") {
           this._busy = false;
           this._setBody(this._htmlInfoMessage(data.message || "No message provided", data.redirection_link));
+          const footerBtn = this.$root.querySelector("#__lumi-deepdive-btn");
+          if (footerBtn) footerBtn.style.display = "none";
 
           setTimeout(() => {
             // FIXED: each button now has its own unique class, so each
@@ -999,9 +1010,11 @@
 
         if (data.intent === "buy" && data.products?.length) {
           this._setBody(this._htmlProducts(data, value));
-          const btn = this.$body.querySelector(".__lumi-deepdive");
-          if (btn) {
-            btn.addEventListener("click", () => this._deepDive(btn.dataset.q), { passive: true });
+          const footerBtn = this.$root.querySelector("#__lumi-deepdive-btn");
+          if (footerBtn) {
+            footerBtn.style.display = "flex";
+            footerBtn.dataset.q = this._escapeHtml(value);
+            footerBtn.onclick = () => this._deepDive(value);
           }
         } else if (data.message) {
           this._busy = false;
@@ -1010,6 +1023,8 @@
             this.$input.blur();
           }
           this._setBody(this._htmlHint());
+          const footerBtn = this.$root.querySelector("#__lumi-deepdive-btn");
+          if (footerBtn) footerBtn.style.display = "none";
           this.closeSearch();
           this._saveToHistory('user', value);
           this._userMsg(this._escapeHtml(value));
@@ -1018,6 +1033,8 @@
           return;
         } else {
           this._setBody(this._htmlError("No results found for your query."));
+          const footerBtn = this.$root.querySelector("#__lumi-deepdive-btn");
+          if (footerBtn) footerBtn.style.display = "none";
         }
       } catch (err) {
         if (err.name === 'AbortError') {
