@@ -343,19 +343,49 @@
       `;
       return el;
     }
+_mkTrigger() {
+  // 1. Wrapper container — NO inline styles
+  const wrap = document.createElement("div");
+  wrap.id = "__lumi-trigger-wrap";
+  document.body.appendChild(wrap);
+  this.$triggerWrap = wrap;
 
-    _mkTrigger() {
-      const btn = document.createElement("button");
-      btn.id = "__lumi-trigger";
-      btn.setAttribute("aria-label", "Open AI Search");
-      btn.innerHTML = `<span class="__lt-icon">${I.search}</span><span>${this.cfg.triggerLabel}</span>`;
+  // 2. Bot Avatar — NO inline styles
+  const avatar = document.createElement("div");
+  avatar.id = "__lumi-bot-avatar";
+  avatar.setAttribute("title", "AI Search");
 
-      btn.addEventListener("click", () => this.openSearch(), { passive: true });
+  // Create <img> with local src — CSP-safe, NO style attribute
+  const img = document.createElement("img");
+  img.src =  "assets/lumi-bot.gif"
+  img.alt = "AI Bot";
+  avatar.appendChild(img);
 
-      document.body.appendChild(btn);
-      this.$trigger = btn;
-    }
+  // Tooltip inside avatar — NO inline styles
+  
 
+  avatar.addEventListener("click", () => this.openSearch());
+  wrap.appendChild(avatar);
+  this.$botAvatar = avatar;
+
+  // 3. Animated Button — NO inline styles
+  const btn = document.createElement("button");
+  btn.id = "__lumi-trigger-btn";
+  btn.setAttribute("aria-label", "Open AI Search");
+  btn.innerHTML = `
+    <span class="__lumi-btn-glow"></span>
+    <span class="__lumi-btn-text">${this._escapeHtml(this.cfg.triggerLabel || 'AI Search')}</span>
+    <span class="__lumi-btn-arrow">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="5" y1="12" x2="19" y2="12"/>
+        <polyline points="12 5 19 12 12 19"/>
+      </svg>
+    </span>
+  `;
+  btn.addEventListener("click", () => this.openSearch());
+  wrap.appendChild(btn);
+  this.$triggerBtn = btn;
+}
     _mkBackdrop() {
       const el = document.createElement("div");
       el.id = "__lumi-backdrop";
